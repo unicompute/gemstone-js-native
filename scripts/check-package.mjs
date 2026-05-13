@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -37,9 +37,30 @@ const forbidden = [
   "target",
 ];
 
+const publicExports = [
+  "Gci",
+  "smallintToOop",
+  "oopToSmallint",
+  "isSmallintOop",
+  "boolToOop",
+  "charToOopString",
+  "oopToCharString",
+];
+
 for (const path of required) {
   if (!fileSet.has(path)) {
     throw new Error(`npm pack is missing required file: ${path}`);
+  }
+}
+
+const declarations = readFileSync("index.d.ts", "utf8");
+const loader = readFileSync("index.js", "utf8");
+for (const name of publicExports) {
+  if (!declarations.includes(` ${name}`)) {
+    throw new Error(`index.d.ts is missing public export: ${name}`);
+  }
+  if (!loader.includes(`module.exports.${name}`)) {
+    throw new Error(`index.js is missing public export: ${name}`);
   }
 }
 
