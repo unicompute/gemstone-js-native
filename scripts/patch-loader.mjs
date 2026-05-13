@@ -1,9 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const loaderPath = fileURLToPath(new URL("../index.js", import.meta.url));
+const args = parseArgs(process.argv.slice(2));
+const loaderPath = args.loaderPath ?? fileURLToPath(new URL("../index.js", import.meta.url));
 const source = readFileSync(loaderPath, "utf8");
-const checkOnly = process.argv.includes("--check");
+const checkOnly = args.checkOnly;
 
 const requiredPatchedSnippets = [
   "const { Gci: NativeGci",
@@ -150,4 +152,23 @@ function assertPatchedLoader(value) {
       throw new Error(`index.js GemStone GCI error mapping is incomplete: missing ${JSON.stringify(snippet)}.`);
     }
   }
+}
+
+function parseArgs(argv) {
+  let checkOnly = false;
+  let loaderPath;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--check") {
+      checkOnly = true;
+    } else if (arg === "--loader") {
+      const value = argv[index + 1];
+      index += 1;
+      if (!value) throw new Error("--loader requires a path.");
+      loaderPath = resolve(value);
+    } else {
+      throw new Error(`Unexpected argument: ${arg}`);
+    }
+  }
+  return { checkOnly, loaderPath };
 }

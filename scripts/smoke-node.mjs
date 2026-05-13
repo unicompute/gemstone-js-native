@@ -1,4 +1,9 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gciMethods, publicExports } from "./public-surface.mjs";
 
 const require = createRequire(import.meta.url);
@@ -46,6 +51,7 @@ assertMappedGciError(
   "constructor",
   "Gci constructor should decorate native loading errors.",
 );
+assertPatchLoaderPatchesGeneratedFixture();
 
 if (native.oopToCharString("20") !== null) {
   throw new Error("oopToCharString should return null for non-Character OOPs.");
@@ -78,4 +84,35 @@ function assertMappedGciError(fn, operation, message) {
     throw new Error(`${message} Got ${String(error?.message ?? error)}.`);
   }
   throw new Error(message);
+}
+
+function assertPatchLoaderPatchesGeneratedFixture() {
+  const dir = mkdtempSync(join(tmpdir(), "gemstone-js-native-loader-"));
+  const loaderPath = join(dir, "index.js");
+  const patchScript = fileURLToPath(new URL("./patch-loader.mjs", import.meta.url));
+  try {
+    writeFileSync(loaderPath, generatedLoaderFixture());
+    execFileSync(process.execPath, [patchScript, "--loader", loaderPath], { encoding: "utf8" });
+    const patched = readFileSync(loaderPath, "utf8");
+    if (!patched.includes("GEMSTONE_GCI_ERROR") || !patched.includes("class Gci extends NativeGci")) {
+      throw new Error("patch-loader did not apply GemStone GCI error mapping to a generated loader fixture.");
+    }
+    execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--check"], { encoding: "utf8" });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function generatedLoaderFixture() {
+  return `const nativeBinding = {}
+const { Gci, smallintToOop, oopToSmallint, isSmallintOop, boolToOop, charToOopString, oopToCharString } = nativeBinding
+
+module.exports.Gci = Gci
+module.exports.smallintToOop = smallintToOop
+module.exports.oopToSmallint = oopToSmallint
+module.exports.isSmallintOop = isSmallintOop
+module.exports.boolToOop = boolToOop
+module.exports.charToOopString = charToOopString
+module.exports.oopToCharString = oopToCharString
+`;
 }

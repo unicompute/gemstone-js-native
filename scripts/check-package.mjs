@@ -148,8 +148,12 @@ try {
 if (!declarations.includes("interface GemStoneNativeError")) {
   throw new Error("index.d.ts is missing GemStoneNativeError declaration.");
 }
-if (!readFileSync("scripts/smoke-node.mjs", "utf8").includes("assertMappedGciError")) {
+const nodeSmoke = readFileSync("scripts/smoke-node.mjs", "utf8");
+if (!nodeSmoke.includes("assertMappedGciError")) {
   throw new Error("scripts/smoke-node.mjs must assert mapped Gci errors.");
+}
+if (!nodeSmoke.includes("assertPatchLoaderPatchesGeneratedFixture")) {
+  throw new Error("scripts/smoke-node.mjs must assert patch-loader against a generated loader fixture.");
 }
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {
