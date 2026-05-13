@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +37,7 @@ try {
   });
   assertMismatchFails();
   assertVerifierInputFailures();
+  assertManifestIsExcluded();
   assertInvalidSuffixFails();
   assertDuplicateSuffixFails();
   assertNoMatchFails();
@@ -83,6 +84,23 @@ function assertVerifierFails(fileName, contents) {
     return;
   }
   throw new Error(`verify-checksums.mjs should fail for invalid manifest ${fileName}.`);
+}
+
+function assertManifestIsExcluded() {
+  const manifestWorkspace = join(workspace, "manifest-exclusion");
+  mkdirSync(manifestWorkspace);
+  writeFileSync(join(manifestWorkspace, "notes.txt"), "ignored");
+  writeFileSync(join(manifestWorkspace, "SHA256SUMS.txt"), "existing-manifest");
+  execFileSync(process.execPath, [script, ".txt"], {
+    cwd: manifestWorkspace,
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+  const expected = `${sha256("ignored")}  notes.txt\n`;
+  const actual = readFileSync(join(manifestWorkspace, "SHA256SUMS.txt"), "utf8");
+  if (actual !== expected) {
+    throw new Error(`write-checksums.mjs should exclude SHA256SUMS.txt from matching artifact suffixes.\nActual:\n${actual}`);
+  }
 }
 
 function assertNoMatchFails() {

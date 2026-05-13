@@ -211,6 +211,9 @@ if (!checksumCheck.includes("assertInvalidSuffixFails")) {
 if (!checksumCheck.includes("assertDuplicateSuffixFails")) {
   throw new Error("scripts/check-checksums.mjs must assert duplicate checksum suffix behavior.");
 }
+if (!checksumCheck.includes("assertManifestIsExcluded")) {
+  throw new Error("scripts/check-checksums.mjs must assert SHA256SUMS.txt exclusion behavior.");
+}
 if (
   !checksumCheck.includes("verify-checksums.mjs")
   || !checksumCheck.includes("assertMismatchFails")
@@ -226,6 +229,9 @@ if (!checksumWriter.includes("startsWith(\".\")")) {
 }
 if (!checksumWriter.includes("uniqueSuffixes")) {
   throw new Error("scripts/write-checksums.mjs must reject duplicate artifact suffix filters.");
+}
+if (!checksumWriter.includes('file !== "SHA256SUMS.txt"')) {
+  throw new Error("scripts/write-checksums.mjs must exclude SHA256SUMS.txt from artifact targets.");
 }
 if (!checksumVerifier.includes("createHash") || !checksumVerifier.includes("Checksum mismatch")) {
   throw new Error("scripts/verify-checksums.mjs must verify sha256 digests and report mismatches.");

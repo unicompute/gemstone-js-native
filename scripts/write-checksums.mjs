@@ -17,6 +17,7 @@ if (uniqueSuffixes.size !== suffixes.length) {
 }
 
 const files = readdirSync(".")
+  .filter((file) => file !== "SHA256SUMS.txt")
   .filter((file) => suffixes.some((suffix) => file.endsWith(suffix)))
   .sort();
 
