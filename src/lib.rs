@@ -260,23 +260,13 @@ impl Gci {
     #[napi(js_name = "fetchBytes")]
     pub fn fetch_bytes(&self, oop: String, start: i64, count: i64) -> Result<Buffer> {
         let start = validate_fetch_start(start)?;
-        let count = fetch_count_to_usize(count)?;
-        let mut bytes = vec![0_u8; count];
+        let buffer_len = fetch_count_to_usize(count)?;
+        let mut bytes = vec![0_u8; buffer_len];
         let read = unsafe {
             self.lib
-                .gci_fetch_bytes(
-                    parse_oop(oop)?,
-                    start,
-                    bytes.as_mut_ptr().cast(),
-                    count as i64,
-                )
+                .gci_fetch_bytes(parse_oop(oop)?, start, bytes.as_mut_ptr().cast(), count)
                 .map_err(to_napi_error)?
         };
-        if read < 0 {
-            return Err(Error::from_reason(format!(
-                "GciFetchBytes_ returned negative byte count {read}."
-            )));
-        }
         bytes.truncate(fetch_read_to_truncate_len(read, bytes.len())?);
         Ok(Buffer::from(bytes))
     }

@@ -21,7 +21,9 @@ cargo test
 
 The Rust tests cover wire-format parsing and immediate OOP helpers in addition
 to boundary validation for perform argument counts, fetch ranges, returned byte
-counts, finite floats, and session ids.
+counts, finite floats, and session ids. The `fetchBytes` wrapper keeps the
+validated GCI byte count separate from the JavaScript buffer length to avoid
+unchecked narrowing at the FFI call.
 
 Building the Node addon itself uses napi-rs:
 
