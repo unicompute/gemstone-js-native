@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
 const manifest = process.argv[2] ?? "SHA256SUMS.txt";
@@ -39,6 +39,9 @@ for (const line of lines) {
   const filePath = resolve(baseDir, fileName);
   if (!existsSync(filePath)) {
     fail(`Checksum target not found: ${fileName}`);
+  }
+  if (!statSync(filePath).isFile()) {
+    fail(`Checksum targets must be regular files: ${fileName}`);
   }
   const actual = createHash("sha256").update(readFileSync(filePath)).digest("hex");
   if (actual.toLowerCase() !== expected.toLowerCase()) {

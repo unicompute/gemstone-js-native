@@ -30,12 +30,12 @@ publishing.
 artifacts. The local `npm run checksum:check` script also verifies that the
 checksum writer produces stable sorted output, that the checksum verifier
 accepts matching artifacts and rejects mismatches, empty or malformed
-manifests, missing files, pathful entries, duplicate entries, manifest artifact
-targets, and that writing checksums fails when no artifact suffixes match or
-when suffix filters are malformed, pathful, whitespace-bearing, or duplicated.
-The checksum writer excludes `SHA256SUMS.txt` itself from artifact suffix
-matches, so broad suffix checks cannot include the manifest as an artifact
-target.
+manifests, missing files, pathful entries, non-file targets, duplicate entries,
+manifest artifact targets, and that writing checksums fails when no artifact
+suffixes match or when suffix filters are malformed, pathful,
+whitespace-bearing, or duplicated. The checksum writer excludes
+`SHA256SUMS.txt` itself and directories from artifact suffix matches, so broad
+suffix checks cannot include the manifest as an artifact target.
 `npm run public-surface:check` verifies that the generated loader, TypeScript
 declarations, loader patcher, and smoke checks agree on exported helpers and
 `Gci` methods before publishing.

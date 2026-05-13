@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 
 const suffixes = process.argv.slice(2);
 if (suffixes.length === 0) {
@@ -24,6 +24,7 @@ if (uniqueSuffixes.size !== suffixes.length) {
 
 const files = readdirSync(".")
   .filter((file) => file !== "SHA256SUMS.txt")
+  .filter((file) => statSync(file).isFile())
   .filter((file) => suffixes.some((suffix) => file.endsWith(suffix)))
   .sort();
 

@@ -239,6 +239,9 @@ if (!checksumWriter.includes("uniqueSuffixes")) {
 if (!checksumWriter.includes('file !== "SHA256SUMS.txt"')) {
   throw new Error("scripts/write-checksums.mjs must exclude SHA256SUMS.txt from artifact targets.");
 }
+if (!checksumWriter.includes("isFile()")) {
+  throw new Error("scripts/write-checksums.mjs must only write checksums for regular files.");
+}
 if (!checksumVerifier.includes("createHash") || !checksumVerifier.includes("Checksum mismatch")) {
   throw new Error("scripts/verify-checksums.mjs must verify sha256 digests and report mismatches.");
 }
@@ -247,6 +250,9 @@ if (!checksumVerifier.includes("Duplicate checksum target")) {
 }
 if (!checksumVerifier.includes("must not be artifact targets")) {
   throw new Error("scripts/verify-checksums.mjs must reject checksum manifest artifact targets.");
+}
+if (!checksumVerifier.includes("regular files")) {
+  throw new Error("scripts/verify-checksums.mjs must reject non-file checksum targets.");
 }
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {

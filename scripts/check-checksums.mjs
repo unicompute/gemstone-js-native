@@ -14,6 +14,7 @@ try {
   writeFileSync(join(workspace, "package.tgz"), "package-tarball");
   writeFileSync(join(workspace, "addon.node"), "native-binary");
   writeFileSync(join(workspace, "notes.txt"), "ignored");
+  mkdirSync(join(workspace, "directory.tgz"));
 
   execFileSync(process.execPath, [script, ".tgz", ".node"], {
     cwd: workspace,
@@ -66,6 +67,7 @@ function assertVerifierInputFailures() {
   assertVerifierFails("BAD-SHA256SUMS.txt", "not-a-checksum-line\n");
   assertVerifierFails("MISSING-SHA256SUMS.txt", `${sha256("missing")}  missing.tgz\n`);
   assertVerifierFails("PATH-SHA256SUMS.txt", `${sha256("nested")}  nested/package.tgz\n`);
+  assertVerifierFails("DIRECTORY-SHA256SUMS.txt", `${sha256("directory")}  directory.tgz\n`);
   assertVerifierFails("SELF-SHA256SUMS.txt", `${sha256("self-manifest")}  SELF-SHA256SUMS.txt\n`);
   assertVerifierFails("MANIFEST-TARGET-SHA256SUMS.txt", `${sha256("manifest")}  SHA256SUMS.txt\n`);
   assertVerifierFails("DUPLICATE-SHA256SUMS.txt", [
