@@ -103,7 +103,13 @@ const nativeBinaries = files.filter((file) => file.endsWith(".node"));
 if (nativeBinaries.length === 0) {
   throw new Error("npm pack is missing a native .node binary. Run npm run build before pack:check.");
 }
+if (nativeBinaries.length !== 1) {
+  throw new Error(`npm pack must include exactly one platform native binary, found: ${nativeBinaries.join(", ")}`);
+}
 for (const binary of nativeBinaries) {
+  if (!/^index\.[A-Za-z0-9_.-]+\.node$/.test(binary)) {
+    throw new Error(`packed native binary must use the generated index.<platform>.node naming pattern: ${binary}`);
+  }
   if (!loader.includes(JSON.stringify(binary)) && !loader.includes(`'${binary}'`)) {
     throw new Error(`index.js does not reference packed native binary: ${binary}`);
   }
