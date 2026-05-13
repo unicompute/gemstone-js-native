@@ -287,6 +287,7 @@ impl Gci {
 
     #[napi(js_name = "setSessionId")]
     pub fn set_session_id(&self, session_id: i32) -> Result<()> {
+        let session_id = validate_session_id(session_id)?;
         unsafe {
             self.lib
                 .gci_set_session_id(session_id)
@@ -516,6 +517,13 @@ fn validate_fetch_start(start: i64) -> Result<i64> {
     Ok(start)
 }
 
+fn validate_session_id(session_id: i32) -> Result<i32> {
+    if session_id < 0 {
+        return Err(Error::from_reason("session id must be non-negative."));
+    }
+    Ok(session_id)
+}
+
 fn to_napi_error(error: impl std::fmt::Display) -> Error {
     Error::from_reason(error.to_string())
 }
@@ -564,5 +572,12 @@ mod tests {
         assert_eq!(validate_fetch_start(42).unwrap(), 42);
         assert!(validate_fetch_start(0).is_err());
         assert!(validate_fetch_start(-1).is_err());
+    }
+
+    #[test]
+    fn session_id_validation_rejects_negative_values() {
+        assert_eq!(validate_session_id(0).unwrap(), 0);
+        assert_eq!(validate_session_id(42).unwrap(), 42);
+        assert!(validate_session_id(-1).is_err());
     }
 }
