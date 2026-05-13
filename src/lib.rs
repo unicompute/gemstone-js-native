@@ -15,6 +15,7 @@ pub struct LoginOptions {
     pub halt_on_error: Option<bool>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[napi(object)]
 pub struct GciErrorInfo {
     pub number: i32,
@@ -507,6 +508,19 @@ impl ExperimentalGciThreadWorker {
             .map_err(Error::from_reason)
     }
 
+    pub fn err(&self) -> Result<Option<GciErrorInfo>> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(GciThreadCommand::Err(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
     #[cfg(test)]
     fn start_for_path_with_readbacks(
         path: PathBuf,
@@ -514,6 +528,7 @@ impl ExperimentalGciThreadWorker {
         classes: impl IntoIterator<Item = (RawOop, RawOop)>,
         executions: impl IntoIterator<Item = ((String, RawOop), RawOop)>,
         performs: impl IntoIterator<Item = ((RawOop, String, Vec<RawOop>), RawOop)>,
+        err_info: Option<GciErrorInfo>,
     ) -> Result<Self> {
         Self::spawn(GciThreadState::PathOnly {
             path,
@@ -521,6 +536,7 @@ impl ExperimentalGciThreadWorker {
             classes: classes.into_iter().collect(),
             executions: executions.into_iter().collect(),
             performs: performs.into_iter().collect(),
+            err_info,
         })
     }
 
@@ -550,6 +566,9 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::Perform(receiver_oop, selector, args, reply) => {
                             let _ = reply.send(state.perform(receiver_oop, selector, args));
+                        }
+                        GciThreadCommand::Err(reply) => {
+                            let _ = reply.send(state.err());
                         }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
@@ -604,6 +623,7 @@ enum GciThreadState {
         classes: std::collections::BTreeMap<RawOop, RawOop>,
         executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
         performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
+        err_info: Option<GciErrorInfo>,
     },
 }
 
@@ -694,6 +714,22 @@ impl GciThreadState {
                 }),
         }
     }
+
+    fn err(&self) -> std::result::Result<Option<GciErrorInfo>, String> {
+        match self {
+            Self::Live(lib) => {
+                let mut err = GciErrSType::default();
+                let ok = unsafe { lib.gci_err(&mut err).map_err(|error| error.to_string())? };
+                if ok == 0 && err.number == 0 {
+                    Ok(None)
+                } else {
+                    Ok(Some(gci_error_info(err)))
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { err_info, .. } => Ok(err_info.clone()),
+        }
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -718,6 +754,7 @@ enum GciThreadCommand {
         Vec<RawOop>,
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
+    Err(std::sync::mpsc::Sender<std::result::Result<Option<GciErrorInfo>, String>>),
     ThreadId(std::sync::mpsc::Sender<String>),
     Shutdown,
 }
@@ -1000,6 +1037,16 @@ mod tests {
         let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
         let object_class = 123_456;
         let object = 789_000;
+        let synthetic_error = GciErrorInfo {
+            number: 2406,
+            fatal: false,
+            message: "synthetic error".to_string(),
+            reason: Some("synthetic reason".to_string()),
+            category: "0".to_string(),
+            context: "0".to_string(),
+            exception_obj: "0".to_string(),
+            args: vec![],
+        };
         let worker = ExperimentalGciThreadWorker::start_for_path_with_readbacks(
             path.clone(),
             [(OOP_NIL, 0), (i64_to_smallint(42), 0)],
@@ -1013,6 +1060,7 @@ mod tests {
                 ),
                 object_class,
             )],
+            Some(synthetic_error.clone()),
         )
         .unwrap();
 
@@ -1033,6 +1081,7 @@ mod tests {
                 .unwrap(),
             object_class
         );
+        assert_eq!(worker.err().unwrap(), Some(synthetic_error));
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())
