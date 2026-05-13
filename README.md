@@ -26,6 +26,7 @@ cargo fmt --check
 cargo test
 cargo test --features session-thread-spike
 npm run session-thread:check
+npm run checksum:check
 ```
 
 The Rust tests cover wire-format parsing and immediate OOP helpers in addition
@@ -41,6 +42,8 @@ JavaScript buffer length to avoid unchecked narrowing at the FFI call.
 `npm run session-thread:check` statically verifies that the feature-gated
 `ExperimentalGciThreadWorker` command enum, public wrapper methods, dispatch
 arms, state implementations, docs, and package script contract stay in sync.
+`npm run checksum:check` verifies that the release checksum helper emits stable
+sorted `SHA256SUMS.txt` output and fails when no artifact suffixes match.
 
 Building the Node addon itself uses napi-rs:
 
@@ -65,11 +68,12 @@ real Stone.
 `index.d.ts` expose the same public helpers, verifies the npm and Cargo versions
 and package metadata match, verifies the npm entrypoint/export map, verifies
 the npm script contract, verifies `Gci` method declarations, checks the
-session-thread spike coverage guard, and fails if the generated platform
-`.node` binary is missing, duplicated, misnamed, or not referenced by the
-generated loader. It also checks the CI and prebuild workflow snippets that
-produce and upload release artifacts, and guards the release docs for artifact
-checksum, registry signature, and provenance verification steps.
+session-thread spike coverage guard, checks the checksum helper self-test, and
+fails if the generated platform `.node` binary is missing, duplicated, misnamed,
+or not referenced by the generated loader. It also checks the CI and prebuild
+workflow snippets that produce and upload release artifacts, and guards the
+release docs for artifact checksum, registry signature, and provenance
+verification steps.
 
 Release notes, npm provenance guidance, and the current platform matrix live in
 `docs/releasing.md`. Rust-side error mapping and dedicated session-threading

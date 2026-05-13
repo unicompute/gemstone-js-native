@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const script = fileURLToPath(new URL("./write-checksums.mjs", import.meta.url));
+const workspace = mkdtempSync(join(tmpdir(), "gemstone-js-native-checksums-"));
+
+try {
+  writeFileSync(join(workspace, "package.tgz"), "package-tarball");
+  writeFileSync(join(workspace, "addon.node"), "native-binary");
+  writeFileSync(join(workspace, "notes.txt"), "ignored");
+
+  execFileSync(process.execPath, [script, ".tgz", ".node"], {
+    cwd: workspace,
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+
+  const expected = [
+    `${sha256("native-binary")}  addon.node`,
+    `${sha256("package-tarball")}  package.tgz`,
+  ].join("\n") + "\n";
+  const actual = readFileSync(join(workspace, "SHA256SUMS.txt"), "utf8");
+  if (actual !== expected) {
+    throw new Error(`Unexpected SHA256SUMS.txt content.\nExpected:\n${expected}\nActual:\n${actual}`);
+  }
+
+  assertNoMatchFails();
+  process.stdout.write("Checksum helper check passed.\n");
+} finally {
+  rmSync(workspace, { recursive: true, force: true });
+}
+
+function assertNoMatchFails() {
+  try {
+    execFileSync(process.execPath, [script, ".missing"], {
+      cwd: workspace,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch {
+    return;
+  }
+  throw new Error("write-checksums.mjs should fail when no files match.");
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}

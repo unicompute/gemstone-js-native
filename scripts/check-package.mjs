@@ -81,11 +81,13 @@ const required = [
   "index.js",
   "package.json",
   "scripts/check-package.mjs",
+  "scripts/check-checksums.mjs",
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
   "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
+  "scripts/write-checksums.mjs",
 ];
 
 const forbidden = [
@@ -101,11 +103,13 @@ const requiredFileEntries = [
   "README.md",
   "LICENSE",
   "scripts/check-package.mjs",
+  "scripts/check-checksums.mjs",
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
   "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
+  "scripts/write-checksums.mjs",
   "*.node",
 ];
 const requiredScripts = {
@@ -117,7 +121,8 @@ const requiredScripts = {
   "pack:check": "node scripts/check-package.mjs",
   "loader:check": "node scripts/patch-loader.mjs --check",
   "session-thread:check": "node scripts/check-session-thread-spike.mjs",
-  verify: "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run test:node && npm run loader:check && npm run pack:check",
+  "checksum:check": "node scripts/check-checksums.mjs",
+  verify: "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run test:node && npm run loader:check && npm run pack:check",
 };
 
 for (const path of required) {
@@ -165,6 +170,8 @@ for (const snippet of ["category: string", "context: string", "exceptionObj: str
 }
 const nodeSmoke = readFileSync("scripts/smoke-node.mjs", "utf8");
 const sessionThreadCheck = readFileSync("scripts/check-session-thread-spike.mjs", "utf8");
+const checksumCheck = readFileSync("scripts/check-checksums.mjs", "utf8");
+const checksumWriter = readFileSync("scripts/write-checksums.mjs", "utf8");
 if (!nodeSmoke.includes("assertMappedGciError")) {
   throw new Error("scripts/smoke-node.mjs must assert mapped Gci errors.");
 }
@@ -176,6 +183,15 @@ if (!sessionThreadCheck.includes("ExperimentalGciThreadWorker")) {
 }
 if (!sessionThreadCheck.includes("GciThreadCommand")) {
   throw new Error("scripts/check-session-thread-spike.mjs must assert GciThreadCommand coverage.");
+}
+if (!checksumCheck.includes("write-checksums.mjs")) {
+  throw new Error("scripts/check-checksums.mjs must exercise write-checksums.mjs.");
+}
+if (!checksumCheck.includes("SHA256SUMS.txt") || !checksumCheck.includes("no files match")) {
+  throw new Error("scripts/check-checksums.mjs must assert checksum output and no-match behavior.");
+}
+if (!checksumWriter.includes("createHash") || !checksumWriter.includes("sha256")) {
+  throw new Error("scripts/write-checksums.mjs must compute sha256 digests.");
 }
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {

@@ -25,7 +25,9 @@ The workflow uploads the `.node` file, npm tarball, and `SHA256SUMS.txt` as
 GitHub Actions artifacts so the package contents can be inspected before
 publishing.
 `npm run pack:check` verifies that both CI workflows still build, run
-`npm run verify`, pack, and upload the expected release artifacts.
+`npm run verify`, pack, and upload the expected release artifacts. The local
+`npm run checksum:check` script also verifies that the checksum writer produces
+stable sorted output and fails when no artifact suffixes match.
 
 ## Artifact Inspection
 

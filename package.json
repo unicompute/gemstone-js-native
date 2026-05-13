@@ -26,11 +26,13 @@
     "README.md",
     "LICENSE",
     "scripts/check-package.mjs",
+    "scripts/check-checksums.mjs",
     "scripts/live-smoke-node.mjs",
     "scripts/patch-loader.mjs",
     "scripts/public-surface.mjs",
     "scripts/check-session-thread-spike.mjs",
     "scripts/smoke-node.mjs",
+    "scripts/write-checksums.mjs",
     "*.node"
   ],
   "scripts": {
@@ -42,7 +44,8 @@
     "pack:check": "node scripts/check-package.mjs",
     "loader:check": "node scripts/patch-loader.mjs --check",
     "session-thread:check": "node scripts/check-session-thread-spike.mjs",
-    "verify": "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run test:node && npm run loader:check && npm run pack:check"
+    "checksum:check": "node scripts/check-checksums.mjs",
+    "verify": "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run test:node && npm run loader:check && npm run pack:check"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0"
