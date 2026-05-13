@@ -12,10 +12,48 @@ const required = [
   "charToOopString",
   "oopToCharString",
 ];
+const gciMethods = [
+  "init",
+  "libraryPath",
+  "encrypt",
+  "setNet",
+  "loginEx",
+  "logout",
+  "commit",
+  "abort",
+  "err",
+  "executeStr",
+  "perform",
+  "newString",
+  "newSymbol",
+  "newOop",
+  "resolveSymbol",
+  "fetchClass",
+  "fetchSize",
+  "fetchBytes",
+  "getSessionId",
+  "setSessionId",
+  "needsCommit",
+  "inTransaction",
+  "fltToOop",
+  "oopToFlt",
+  "symDictAt",
+  "symDictAtPut",
+  "symDictAtObjPut",
+  "strKeyValueDictAt",
+  "strKeyValueDictAtPut",
+  "addOopToExportSet",
+  "removeOopFromExportSet",
+];
 
 for (const name of required) {
   if (typeof native[name] !== "function") {
     throw new Error(`@gemstone-js/native is missing ${name} export.`);
+  }
+}
+for (const name of gciMethods) {
+  if (typeof native.Gci.prototype[name] !== "function") {
+    throw new Error(`@gemstone-js/native Gci prototype is missing ${name}.`);
   }
 }
 
