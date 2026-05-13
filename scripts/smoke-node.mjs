@@ -92,6 +92,10 @@ function assertPatchLoaderPatchesGeneratedFixture() {
   const patchScript = fileURLToPath(new URL("./patch-loader.mjs", import.meta.url));
   try {
     writeFileSync(loaderPath, generatedLoaderFixture());
+    assertCommandFails(
+      () => execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--check"], { encoding: "utf8", stdio: "pipe" }),
+      "patch-loader --check should reject an unpatched generated loader fixture.",
+    );
     execFileSync(process.execPath, [patchScript, "--loader", loaderPath], { encoding: "utf8" });
     const patched = readFileSync(loaderPath, "utf8");
     if (!patched.includes("GEMSTONE_GCI_ERROR") || !patched.includes("class Gci extends NativeGci")) {
@@ -101,6 +105,15 @@ function assertPatchLoaderPatchesGeneratedFixture() {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function assertCommandFails(fn, message) {
+  try {
+    fn();
+  } catch {
+    return;
+  }
+  throw new Error(message);
 }
 
 function generatedLoaderFixture() {
