@@ -8,8 +8,8 @@ and delegates dynamic `libgcirpc` loading to the shared `gemstone-gci` Rust
 crate from [`gemstone-rs`](https://github.com/unicompute/gemstone-rs).
 String and OOP values cross the Node boundary in decimal wire form so JavaScript
 does not lose precision on 64-bit object pointers.
-The addon validates byte ranges and session ids before dispatching into GCI so
-bad JavaScript inputs fail at the boundary.
+The addon validates unsigned decimal OOP strings, byte ranges, and session ids
+before dispatching into GCI so bad JavaScript inputs fail at the boundary.
 
 ## Local Checks
 

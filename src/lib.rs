@@ -494,6 +494,11 @@ fn cstring(value: String) -> Result<CString> {
 }
 
 fn parse_oop(value: String) -> Result<RawOop> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(Error::from_reason(format!(
+            "Invalid OOP value {value:?}: expected unsigned decimal digits"
+        )));
+    }
     value
         .parse::<RawOop>()
         .map_err(|error| Error::from_reason(format!("Invalid OOP value {value:?}: {error}")))
@@ -544,6 +549,9 @@ mod tests {
 
     #[test]
     fn parse_oop_rejects_non_decimal_values() {
+        assert!(parse_oop(String::new()).is_err());
+        assert!(parse_oop("+20".to_string()).is_err());
+        assert!(parse_oop("-20".to_string()).is_err());
         assert!(parse_oop("0x14".to_string()).is_err());
         assert!(parse_oop("not-an-oop".to_string()).is_err());
     }
