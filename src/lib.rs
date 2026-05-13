@@ -484,18 +484,43 @@ impl ExperimentalGciThreadWorker {
             .map_err(Error::from_reason)
     }
 
+    pub fn perform(
+        &self,
+        receiver_oop: RawOop,
+        selector: String,
+        args: Vec<RawOop>,
+    ) -> Result<RawOop> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(GciThreadCommand::Perform(
+                receiver_oop,
+                selector,
+                args,
+                reply,
+            ))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
     #[cfg(test)]
     fn start_for_path_with_readbacks(
         path: PathBuf,
         sizes: impl IntoIterator<Item = (RawOop, i64)>,
         classes: impl IntoIterator<Item = (RawOop, RawOop)>,
         executions: impl IntoIterator<Item = ((String, RawOop), RawOop)>,
+        performs: impl IntoIterator<Item = ((RawOop, String, Vec<RawOop>), RawOop)>,
     ) -> Result<Self> {
         Self::spawn(GciThreadState::PathOnly {
             path,
             sizes: sizes.into_iter().collect(),
             classes: classes.into_iter().collect(),
             executions: executions.into_iter().collect(),
+            performs: performs.into_iter().collect(),
         })
     }
 
@@ -522,6 +547,9 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::ExecuteStr(source, receiver_oop, reply) => {
                             let _ = reply.send(state.execute_str(source, receiver_oop));
+                        }
+                        GciThreadCommand::Perform(receiver_oop, selector, args, reply) => {
+                            let _ = reply.send(state.perform(receiver_oop, selector, args));
                         }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
@@ -575,6 +603,7 @@ enum GciThreadState {
         sizes: std::collections::BTreeMap<RawOop, i64>,
         classes: std::collections::BTreeMap<RawOop, RawOop>,
         executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
+        performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
     },
 }
 
@@ -635,6 +664,36 @@ impl GciThreadState {
                 .ok_or_else(|| format!("No synthetic executeStr result for source {source:?} and receiver {receiver_oop}.")),
         }
     }
+
+    fn perform(
+        &self,
+        receiver_oop: RawOop,
+        selector: String,
+        args: Vec<RawOop>,
+    ) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => {
+                let selector = CString::new(selector)
+                    .map_err(|_| "perform selector contains an interior NUL byte.".to_string())?;
+                let argc = i32::try_from(args.len())
+                    .map_err(|_| "perform arg count exceeds i32 range.".to_string())?;
+                unsafe {
+                    lib.gci_perform(receiver_oop, &selector, args.as_ptr(), argc)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { performs, .. } => performs
+                .get(&(receiver_oop, selector.clone(), args.clone()))
+                .copied()
+                .ok_or_else(|| {
+                    format!(
+                        "No synthetic perform result for receiver {receiver_oop}, selector {selector:?}, and {} args.",
+                        args.len()
+                    )
+                }),
+        }
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -651,6 +710,12 @@ enum GciThreadCommand {
     ExecuteStr(
         String,
         RawOop,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
+    Perform(
+        RawOop,
+        String,
+        Vec<RawOop>,
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
     ThreadId(std::sync::mpsc::Sender<String>),
@@ -931,14 +996,23 @@ mod tests {
 
     #[cfg(feature = "session-thread-spike")]
     #[test]
-    fn experimental_worker_routes_read_only_calls_on_worker_thread() {
+    fn experimental_worker_routes_session_calls_on_worker_thread() {
         let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
         let object_class = 123_456;
+        let object = 789_000;
         let worker = ExperimentalGciThreadWorker::start_for_path_with_readbacks(
             path.clone(),
             [(OOP_NIL, 0), (i64_to_smallint(42), 0)],
             [(OOP_NIL, object_class)],
             [(("1 + 1".to_string(), OOP_NIL), i64_to_smallint(2))],
+            [(
+                (
+                    object,
+                    "at:put:".to_string(),
+                    vec![i64_to_smallint(1), object_class],
+                ),
+                object_class,
+            )],
         )
         .unwrap();
 
@@ -948,6 +1022,16 @@ mod tests {
         assert_eq!(
             worker.execute_str("1 + 1".to_string(), OOP_NIL).unwrap(),
             i64_to_smallint(2)
+        );
+        assert_eq!(
+            worker
+                .perform(
+                    object,
+                    "at:put:".to_string(),
+                    vec![i64_to_smallint(1), object_class]
+                )
+                .unwrap(),
+            object_class
         );
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),

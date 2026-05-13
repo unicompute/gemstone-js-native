@@ -54,22 +54,22 @@ Open design questions:
   live Stone.
 
 The first implementation slice should be a feature-gated worker-thread wrapper
-around one or two read-only calls, followed by `executeStr()` and `perform()`
-once error mapping has moved into Rust.
+around one or two read-only calls, followed by session-bound `executeStr()` and
+`perform()` queue paths before the full JavaScript API is moved onto it.
 
 ### Current Spike
 
 The `session-thread-spike` Cargo feature now compiles an
 `ExperimentalGciThreadWorker`. The worker owns a background Rust thread and
 routes read-only `library_path()`, `fetch_size()`, and `fetch_class()` requests
-through a channel before replying to the caller. It also has a queued
-`execute_str()` path as the first session-bound call shape. The live worker arm
-calls `GciFetchSize_`, `GciFetchClass_`, and `GciExecuteStr_` on the worker
-thread; the feature test uses synthetic readback and execution data to verify
-the queue and reply path from a different OS thread without requiring a live
-Stone or a loadable GCI library.
+through a channel before replying to the caller. It also has queued
+`execute_str()` and `perform()` paths as the first session-bound call shapes.
+The live worker arm calls `GciFetchSize_`, `GciFetchClass_`, `GciExecuteStr_`,
+and `GciPerform_` on the worker thread; the feature test uses synthetic
+readback, execution, and perform data to verify the queue and reply path from a
+different OS thread without requiring a live Stone or a loadable GCI library.
 
 This deliberately avoids changing the JavaScript API. It is only a native
 architecture slice that validates the queue/thread/drop shape before moving
-more session-bound operations such as `perform()`, `err()`, and export-set
-retain/release onto the worker.
+more session-bound operations such as `err()` and export-set retain/release onto
+the worker.

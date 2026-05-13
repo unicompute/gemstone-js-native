@@ -30,7 +30,8 @@ cargo test --features session-thread-spike
 The Rust tests cover wire-format parsing and immediate OOP helpers in addition
 to boundary validation for perform argument counts, fetch ranges, returned byte
 counts, finite floats, and session ids. The feature-gated test keeps the
-experimental `session-thread-spike` worker slice from drifting. The
+experimental `session-thread-spike` worker slice from drifting, including
+queued `executeStr` and `perform` request paths. The
 `fetchBytes` wrapper keeps the validated GCI byte count separate from the
 JavaScript buffer length to avoid unchecked narrowing at the FFI call.
 
