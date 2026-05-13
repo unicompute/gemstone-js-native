@@ -41,6 +41,7 @@ try {
   assertManifestIsExcluded();
   assertInvalidSuffixFails();
   assertWhitespaceArtifactNameFails();
+  assertNonportableArtifactNameFails();
   assertDuplicateSuffixFails();
   assertNoMatchFails();
   process.stdout.write("Checksum helper check passed.\n");
@@ -69,6 +70,7 @@ function assertVerifierInputFailures() {
   assertVerifierFails("MISSING-SHA256SUMS.txt", `${sha256("missing")}  missing.tgz\n`);
   assertVerifierFails("PATH-SHA256SUMS.txt", `${sha256("nested")}  nested/package.tgz\n`);
   assertVerifierFails("WHITESPACE-TARGET-SHA256SUMS.txt", `${sha256("spaced")}  spaced package.tgz\n`);
+  assertVerifierFails("NONPORTABLE-TARGET-SHA256SUMS.txt", `${sha256("bad")}  bad#package.tgz\n`);
   assertVerifierFails("DIRECTORY-SHA256SUMS.txt", `${sha256("directory")}  directory.tgz\n`);
   assertVerifierFails("SELF-SHA256SUMS.txt", `${sha256("self-manifest")}  SELF-SHA256SUMS.txt\n`);
   assertVerifierFails("MANIFEST-TARGET-SHA256SUMS.txt", `${sha256("manifest")}  SHA256SUMS.txt\n`);
@@ -151,6 +153,22 @@ function assertWhitespaceArtifactNameFails() {
     return;
   }
   throw new Error("write-checksums.mjs should fail when a matching artifact file name contains whitespace.");
+}
+
+function assertNonportableArtifactNameFails() {
+  const artifactWorkspace = join(workspace, "nonportable-artifacts");
+  mkdirSync(artifactWorkspace);
+  writeFileSync(join(artifactWorkspace, "bad#package.tgz"), "bad");
+  try {
+    execFileSync(process.execPath, [script, ".tgz"], {
+      cwd: artifactWorkspace,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch {
+    return;
+  }
+  throw new Error("write-checksums.mjs should fail when a matching artifact file name is not portable ASCII.");
 }
 
 function assertDuplicateSuffixFails() {

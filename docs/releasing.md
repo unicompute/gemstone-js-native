@@ -33,8 +33,9 @@ accepts matching artifacts and rejects mismatches, empty or malformed
 manifests, missing files, pathful or whitespace-bearing entries, non-file
 targets, duplicate entries, manifest artifact targets, and that writing
 checksums fails when no artifact suffixes match or when suffix filters or
-matching artifact names are malformed, pathful, whitespace-bearing, or
-duplicated. The checksum writer excludes `SHA256SUMS.txt` itself and
+matching artifact names are malformed, pathful, whitespace-bearing,
+non-portable, or duplicated. The checksum writer excludes `SHA256SUMS.txt`
+itself and
 directories from artifact suffix matches, so broad suffix checks cannot include
 the manifest as an artifact target.
 `npm run public-surface:check` verifies that the generated loader, TypeScript
@@ -60,6 +61,9 @@ Check that the tarball contains `index.js`, `index.d.ts`, `README.md`,
 `LICENSE`, the `scripts/*.mjs` smoke/package helpers, and exactly one generated
 `index.<platform>.node` binary for the artifact platform. It must not contain
 `src/`, `target/`, `Cargo.toml`, `Cargo.lock`, tests, or local editor files.
+Release artifact basenames used in `SHA256SUMS.txt` must use portable ASCII
+letters, digits, `.`, `_`, `@`, `+`, and `-`, with no path separators or
+whitespace.
 Install the `.tgz` into a disposable project and run `node -e
 "const n=require('@gemstone-js/native'); console.log(typeof n.Gci)"` to verify
 the loader resolves the packed binary.

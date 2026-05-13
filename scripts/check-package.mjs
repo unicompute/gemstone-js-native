@@ -245,6 +245,9 @@ if (!checksumWriter.includes("isFile()")) {
 if (!checksumWriter.includes("artifact file names must not contain whitespace")) {
   throw new Error("scripts/write-checksums.mjs must reject whitespace-bearing artifact file names.");
 }
+if (!checksumWriter.includes("portable ASCII characters")) {
+  throw new Error("scripts/write-checksums.mjs must reject non-portable artifact file names.");
+}
 if (!checksumVerifier.includes("createHash") || !checksumVerifier.includes("Checksum mismatch")) {
   throw new Error("scripts/verify-checksums.mjs must verify sha256 digests and report mismatches.");
 }
@@ -259,6 +262,9 @@ if (!checksumVerifier.includes("regular files")) {
 }
 if (!checksumVerifier.includes("file entries must not contain whitespace")) {
   throw new Error("scripts/verify-checksums.mjs must reject whitespace-bearing checksum targets.");
+}
+if (!checksumVerifier.includes("portable ASCII basenames")) {
+  throw new Error("scripts/verify-checksums.mjs must reject non-portable checksum targets.");
 }
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {

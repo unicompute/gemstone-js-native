@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
+const PORTABLE_ARTIFACT_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9_.@+-]*$/;
 const manifest = process.argv[2] ?? "SHA256SUMS.txt";
 const manifestPath = resolve(manifest);
 if (!existsSync(manifestPath)) {
@@ -31,6 +32,9 @@ for (const line of lines) {
   }
   if (/\s/.test(fileName)) {
     fail(`Checksum file entries must not contain whitespace: ${fileName}`);
+  }
+  if (!PORTABLE_ARTIFACT_FILE_RE.test(fileName)) {
+    fail(`Checksum file entries must use portable ASCII basenames: ${fileName}`);
   }
   if (fileName === manifestName || fileName === "SHA256SUMS.txt") {
     fail(`Checksum manifests must not be artifact targets: ${fileName}`);

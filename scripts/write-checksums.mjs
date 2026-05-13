@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 
+const PORTABLE_ARTIFACT_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9_.@+-]*$/;
 const suffixes = process.argv.slice(2);
 if (suffixes.length === 0) {
   fail("Usage: node scripts/write-checksums.mjs <suffix> [suffix...]");
@@ -48,6 +49,9 @@ function fail(message) {
 function validateArtifactFileName(file) {
   if (/\s/.test(file)) {
     fail(`Checksum artifact file names must not contain whitespace: ${file}`);
+  }
+  if (!PORTABLE_ARTIFACT_FILE_RE.test(file)) {
+    fail(`Checksum artifact file names must use portable ASCII characters: ${file}`);
   }
   return file;
 }
