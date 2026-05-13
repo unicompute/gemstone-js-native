@@ -24,12 +24,22 @@ const cargoVersion = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
 const cargoLicense = cargoToml.match(/^license\s*=\s*"([^"]+)"/m)?.[1];
 const cargoHomepage = cargoToml.match(/^homepage\s*=\s*"([^"]+)"/m)?.[1];
 const cargoRepository = cargoToml.match(/^repository\s*=\s*"([^"]+)"/m)?.[1];
+const cargoDescription = cargoToml.match(/^description\s*=\s*"([^"]+)"/m)?.[1];
 
 if (!cargoVersion) {
   throw new Error("Cargo.toml is missing a package version.");
 }
+if (pack.name !== packageJson.name) {
+  throw new Error(`npm pack name ${pack.name} does not match package.json name ${packageJson.name}.`);
+}
+if (pack.version !== packageJson.version) {
+  throw new Error(`npm pack version ${pack.version} does not match package.json version ${packageJson.version}.`);
+}
 if (packageJson.version !== cargoVersion) {
   throw new Error(`package.json version ${packageJson.version} does not match Cargo.toml version ${cargoVersion}.`);
+}
+if (packageJson.description !== cargoDescription) {
+  throw new Error(`package.json description ${packageJson.description} does not match Cargo.toml description ${cargoDescription}.`);
 }
 if (packageJson.license !== cargoLicense) {
   throw new Error(`package.json license ${packageJson.license} does not match Cargo.toml license ${cargoLicense}.`);
