@@ -33,8 +33,8 @@ counts, finite floats, and session ids. The feature-gated test keeps the
 experimental `session-thread-spike` worker slice from drifting, including
 queued `fetchBytes`, `executeStr`, `perform`, `err`, and export-set
 retain/release request paths, transaction status/reset calls, and
-float conversion, dictionary lookup/update calls, plus string/symbol/object
-allocation calls. The
+session id get/set calls, float conversion, dictionary lookup/update calls, plus
+string/symbol/object allocation calls. The
 `fetchBytes` wrapper keeps the validated GCI byte count separate from the
 JavaScript buffer length to avoid unchecked narrowing at the FFI call.
 

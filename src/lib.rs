@@ -560,6 +560,15 @@ impl ExperimentalGciThreadWorker {
         self.request_bool(GciThreadCommand::InTransaction)
     }
 
+    pub fn get_session_id(&self) -> Result<i32> {
+        self.request_i32(GciThreadCommand::GetSessionId)
+    }
+
+    pub fn set_session_id(&self, session_id: i32) -> Result<()> {
+        let session_id = validate_session_id(session_id)?;
+        self.request_unit(|reply| GciThreadCommand::SetSessionId(session_id, reply))
+    }
+
     pub fn flt_to_oop(&self, value: f64) -> Result<RawOop> {
         let value = validate_finite_float(value)?;
         self.request_raw(|reply| GciThreadCommand::FltToOop(value, reply))
@@ -652,6 +661,7 @@ impl ExperimentalGciThreadWorker {
             abort_result: true,
             needs_commit: true,
             in_transaction: false,
+            session_id: 77,
         })
     }
 
@@ -705,6 +715,12 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::InTransaction(reply) => {
                             let _ = reply.send(state.in_transaction());
+                        }
+                        GciThreadCommand::GetSessionId(reply) => {
+                            let _ = reply.send(state.get_session_id());
+                        }
+                        GciThreadCommand::SetSessionId(session_id, reply) => {
+                            let _ = reply.send(state.set_session_id(session_id));
                         }
                         GciThreadCommand::FltToOop(value, reply) => {
                             let _ = reply.send(state.flt_to_oop(value));
@@ -825,6 +841,24 @@ impl ExperimentalGciThreadWorker {
             .map_err(Error::from_reason)
     }
 
+    fn request_i32(
+        &self,
+        build_command: impl FnOnce(
+            std::sync::mpsc::Sender<std::result::Result<i32, String>>,
+        ) -> GciThreadCommand,
+    ) -> Result<i32> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(build_command(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
     fn request_f64(
         &self,
         build_command: impl FnOnce(
@@ -874,6 +908,7 @@ enum GciThreadState {
         abort_result: bool,
         needs_commit: bool,
         in_transaction: bool,
+        session_id: i32,
     },
 }
 
@@ -1107,6 +1142,30 @@ impl GciThreadState {
             },
             #[cfg(test)]
             Self::PathOnly { in_transaction, .. } => Ok(*in_transaction),
+        }
+    }
+
+    fn get_session_id(&self) -> std::result::Result<i32, String> {
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_get_session_id().map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { session_id, .. } => Ok(*session_id),
+        }
+    }
+
+    fn set_session_id(&self, session_id: i32) -> std::result::Result<(), String> {
+        if session_id < 0 {
+            return Err("session id must be non-negative.".to_string());
+        }
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_set_session_id(session_id)
+                    .map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(()),
         }
     }
 
@@ -1362,6 +1421,11 @@ enum GciThreadCommand {
     Abort(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
     NeedsCommit(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
     InTransaction(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
+    GetSessionId(std::sync::mpsc::Sender<std::result::Result<i32, String>>),
+    SetSessionId(
+        i32,
+        std::sync::mpsc::Sender<std::result::Result<(), String>>,
+    ),
     FltToOop(
         f64,
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
@@ -1802,6 +1866,9 @@ mod tests {
         assert!(worker.abort().unwrap());
         assert!(worker.needs_commit().unwrap());
         assert!(!worker.in_transaction().unwrap());
+        assert_eq!(worker.get_session_id().unwrap(), 77);
+        worker.set_session_id(78).unwrap();
+        assert!(worker.set_session_id(-1).is_err());
         assert_eq!(worker.flt_to_oop(3.5).unwrap(), float_oop);
         assert_eq!(worker.oop_to_flt(float_oop).unwrap(), 3.5);
         assert!(worker.flt_to_oop(f64::NAN).is_err());
