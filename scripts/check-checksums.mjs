@@ -40,6 +40,7 @@ try {
   assertVerifierInputFailures();
   assertManifestIsExcluded();
   assertInvalidSuffixFails();
+  assertWhitespaceArtifactNameFails();
   assertDuplicateSuffixFails();
   assertNoMatchFails();
   process.stdout.write("Checksum helper check passed.\n");
@@ -67,6 +68,7 @@ function assertVerifierInputFailures() {
   assertVerifierFails("BAD-SHA256SUMS.txt", "not-a-checksum-line\n");
   assertVerifierFails("MISSING-SHA256SUMS.txt", `${sha256("missing")}  missing.tgz\n`);
   assertVerifierFails("PATH-SHA256SUMS.txt", `${sha256("nested")}  nested/package.tgz\n`);
+  assertVerifierFails("WHITESPACE-TARGET-SHA256SUMS.txt", `${sha256("spaced")}  spaced package.tgz\n`);
   assertVerifierFails("DIRECTORY-SHA256SUMS.txt", `${sha256("directory")}  directory.tgz\n`);
   assertVerifierFails("SELF-SHA256SUMS.txt", `${sha256("self-manifest")}  SELF-SHA256SUMS.txt\n`);
   assertVerifierFails("MANIFEST-TARGET-SHA256SUMS.txt", `${sha256("manifest")}  SHA256SUMS.txt\n`);
@@ -133,6 +135,22 @@ function assertInvalidSuffixFails() {
     }
     throw new Error(`write-checksums.mjs should fail for invalid suffix ${JSON.stringify(suffix)}.`);
   }
+}
+
+function assertWhitespaceArtifactNameFails() {
+  const artifactWorkspace = join(workspace, "whitespace-artifacts");
+  mkdirSync(artifactWorkspace);
+  writeFileSync(join(artifactWorkspace, "spaced package.tgz"), "spaced");
+  try {
+    execFileSync(process.execPath, [script, ".tgz"], {
+      cwd: artifactWorkspace,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch {
+    return;
+  }
+  throw new Error("write-checksums.mjs should fail when a matching artifact file name contains whitespace.");
 }
 
 function assertDuplicateSuffixFails() {

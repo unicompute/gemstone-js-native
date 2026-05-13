@@ -29,6 +29,9 @@ for (const line of lines) {
   if (fileName.includes("/") || fileName.includes("\\")) {
     fail(`Checksum file entries must be basenames: ${fileName}`);
   }
+  if (/\s/.test(fileName)) {
+    fail(`Checksum file entries must not contain whitespace: ${fileName}`);
+  }
   if (fileName === manifestName || fileName === "SHA256SUMS.txt") {
     fail(`Checksum manifests must not be artifact targets: ${fileName}`);
   }

@@ -26,6 +26,7 @@ const files = readdirSync(".")
   .filter((file) => file !== "SHA256SUMS.txt")
   .filter((file) => statSync(file).isFile())
   .filter((file) => suffixes.some((suffix) => file.endsWith(suffix)))
+  .map(validateArtifactFileName)
   .sort();
 
 if (files.length === 0) {
@@ -42,4 +43,11 @@ process.stdout.write(`Wrote SHA256SUMS.txt for ${files.length} file(s).\n`);
 function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);
+}
+
+function validateArtifactFileName(file) {
+  if (/\s/.test(file)) {
+    fail(`Checksum artifact file names must not contain whitespace: ${file}`);
+  }
+  return file;
 }
