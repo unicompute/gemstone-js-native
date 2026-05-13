@@ -545,6 +545,22 @@ impl ExperimentalGciThreadWorker {
         self.request_bool(GciThreadCommand::InTransaction)
     }
 
+    pub fn new_string(&self, value: String) -> Result<RawOop> {
+        self.request_raw(|reply| GciThreadCommand::NewString(value, reply))
+    }
+
+    pub fn new_symbol(&self, value: String) -> Result<RawOop> {
+        self.request_raw(|reply| GciThreadCommand::NewSymbol(value, reply))
+    }
+
+    pub fn new_oop(&self, class_oop: RawOop) -> Result<RawOop> {
+        self.request_raw(|reply| GciThreadCommand::NewOop(class_oop, reply))
+    }
+
+    pub fn resolve_symbol(&self, name: String, symbol_list: RawOop) -> Result<RawOop> {
+        self.request_raw(|reply| GciThreadCommand::ResolveSymbol(name, symbol_list, reply))
+    }
+
     #[cfg(test)]
     fn start_for_path_with_readbacks(
         path: PathBuf,
@@ -616,6 +632,18 @@ impl ExperimentalGciThreadWorker {
                         GciThreadCommand::InTransaction(reply) => {
                             let _ = reply.send(state.in_transaction());
                         }
+                        GciThreadCommand::NewString(value, reply) => {
+                            let _ = reply.send(state.new_string(value));
+                        }
+                        GciThreadCommand::NewSymbol(value, reply) => {
+                            let _ = reply.send(state.new_symbol(value));
+                        }
+                        GciThreadCommand::NewOop(class_oop, reply) => {
+                            let _ = reply.send(state.new_oop(class_oop));
+                        }
+                        GciThreadCommand::ResolveSymbol(name, symbol_list, reply) => {
+                            let _ = reply.send(state.resolve_symbol(name, symbol_list));
+                        }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
                         }
@@ -654,6 +682,24 @@ impl ExperimentalGciThreadWorker {
             std::sync::mpsc::Sender<std::result::Result<(), String>>,
         ) -> GciThreadCommand,
     ) -> Result<()> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(build_command(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
+    fn request_raw(
+        &self,
+        build_command: impl FnOnce(
+            std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+        ) -> GciThreadCommand,
+    ) -> Result<RawOop> {
         let (reply, receiver) = std::sync::mpsc::channel();
         self.sender
             .send(build_command(reply))
@@ -913,6 +959,66 @@ impl GciThreadState {
             Self::PathOnly { in_transaction, .. } => Ok(*in_transaction),
         }
     }
+
+    fn new_string(&self, value: String) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => {
+                let value = CString::new(value)
+                    .map_err(|_| "newString value contains an interior NUL byte.".to_string())?;
+                unsafe {
+                    lib.gci_new_string(&value)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(synthetic_name_oop(41_000, &value)),
+        }
+    }
+
+    fn new_symbol(&self, value: String) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => {
+                let value = CString::new(value)
+                    .map_err(|_| "newSymbol value contains an interior NUL byte.".to_string())?;
+                unsafe {
+                    lib.gci_new_symbol(&value)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(synthetic_name_oop(42_000, &value)),
+        }
+    }
+
+    fn new_oop(&self, class_oop: RawOop) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_new_oop(class_oop)
+                    .map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(class_oop.saturating_add(8)),
+        }
+    }
+
+    fn resolve_symbol(
+        &self,
+        name: String,
+        symbol_list: RawOop,
+    ) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => {
+                let name = CString::new(name)
+                    .map_err(|_| "resolveSymbol name contains an interior NUL byte.".to_string())?;
+                unsafe {
+                    lib.gci_resolve_symbol(&name, symbol_list)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(synthetic_name_oop(43_000, &name) + (symbol_list % 997)),
+        }
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -950,8 +1056,30 @@ enum GciThreadCommand {
     Abort(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
     NeedsCommit(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
     InTransaction(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
+    NewString(
+        String,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
+    NewSymbol(
+        String,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
+    NewOop(
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
+    ResolveSymbol(
+        String,
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
     ThreadId(std::sync::mpsc::Sender<String>),
     Shutdown,
+}
+
+#[cfg(all(feature = "session-thread-spike", test))]
+fn synthetic_name_oop(base: RawOop, value: &str) -> RawOop {
+    base + value.bytes().map(RawOop::from).sum::<RawOop>()
 }
 
 #[napi(js_name = "smallintToOop")]
@@ -1283,6 +1411,21 @@ mod tests {
         assert!(worker.abort().unwrap());
         assert!(worker.needs_commit().unwrap());
         assert!(!worker.in_transaction().unwrap());
+        assert_eq!(
+            worker.new_string("worker string".to_string()).unwrap(),
+            synthetic_name_oop(41_000, "worker string")
+        );
+        assert_eq!(
+            worker.new_symbol("WorkerSymbol".to_string()).unwrap(),
+            synthetic_name_oop(42_000, "WorkerSymbol")
+        );
+        assert_eq!(worker.new_oop(object_class).unwrap(), object_class + 8);
+        assert_eq!(
+            worker
+                .resolve_symbol("Object".to_string(), OOP_NIL)
+                .unwrap(),
+            synthetic_name_oop(43_000, "Object") + (OOP_NIL % 997)
+        );
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())

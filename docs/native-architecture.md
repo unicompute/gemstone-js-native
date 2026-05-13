@@ -56,8 +56,8 @@ Open design questions:
 The first implementation slice should be a feature-gated worker-thread wrapper
 around one or two read-only calls, followed by session-bound `executeStr()` and
 `perform()` queue paths, same-thread error reads, and export-set retain/release
-plus transaction reset/status calls before the full JavaScript API is moved onto
-it.
+plus transaction reset/status and allocation/symbol-resolution calls before the
+full JavaScript API is moved onto it.
 
 ### Current Spike
 
@@ -67,12 +67,13 @@ routes read-only `library_path()`, `fetch_size()`, and `fetch_class()` requests
 through a channel before replying to the caller. It also has queued
 `execute_str()`, `perform()`, `err()`, and export-set retain/release paths as
 the first session-bound call shapes, along with queued `commit()`, `abort()`,
-`needs_commit()`, and `in_transaction()` calls. The live worker arm calls
+`needs_commit()`, `in_transaction()`, `new_string()`, `new_symbol()`,
+`new_oop()`, and `resolve_symbol()` calls. The live worker arm calls
 `GciFetchSize_`, `GciFetchClass_`, `GciExecuteStr_`, `GciPerform_`, `GciErr_`,
-transaction functions, and optional export-set symbols on the worker thread;
-the feature test uses synthetic readback, execution, perform, error, and
-transaction data to verify the queue and reply path from a different OS thread
-without requiring a live Stone or a loadable GCI library.
+transaction and allocation functions, and optional export-set symbols on the
+worker thread; the feature test uses synthetic readback, execution, perform,
+error, transaction, and allocation data to verify the queue and reply path from
+a different OS thread without requiring a live Stone or a loadable GCI library.
 
 This deliberately avoids changing the JavaScript API. It is only a native
 architecture slice that validates the queue/thread/drop shape before moving
