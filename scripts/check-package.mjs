@@ -54,6 +54,22 @@ if (normalizeRepositoryUrl(packageJson.repository?.url) !== normalizeRepositoryU
 if (packageJson.publishConfig?.provenance !== true) {
   throw new Error("package.json publishConfig.provenance must be true.");
 }
+if (packageJson.main !== "./index.js") {
+  throw new Error(`package.json main must be ./index.js, found ${packageJson.main}.`);
+}
+if (packageJson.types !== "./index.d.ts") {
+  throw new Error(`package.json types must be ./index.d.ts, found ${packageJson.types}.`);
+}
+const rootExport = packageJson.exports?.["."];
+if (rootExport?.types !== packageJson.types) {
+  throw new Error(`package.json exports["."].types must match package.json types.`);
+}
+if (rootExport?.require !== packageJson.main) {
+  throw new Error(`package.json exports["."].require must match package.json main.`);
+}
+if (rootExport?.default !== packageJson.main) {
+  throw new Error(`package.json exports["."].default must match package.json main.`);
+}
 
 const required = [
   "LICENSE",
@@ -73,10 +89,28 @@ const forbidden = [
   "src",
   "target",
 ];
+const requiredFileEntries = [
+  "index.js",
+  "index.d.ts",
+  "README.md",
+  "LICENSE",
+  "scripts/check-package.mjs",
+  "scripts/public-surface.mjs",
+  "scripts/smoke-node.mjs",
+  "*.node",
+];
 
 for (const path of required) {
   if (!fileSet.has(path)) {
     throw new Error(`npm pack is missing required file: ${path}`);
+  }
+}
+if (!Array.isArray(packageJson.files)) {
+  throw new Error("package.json files must be an array.");
+}
+for (const entry of requiredFileEntries) {
+  if (!packageJson.files.includes(entry)) {
+    throw new Error(`package.json files is missing required entry: ${entry}`);
   }
 }
 

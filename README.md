@@ -39,9 +39,9 @@ helpers and `Gci` prototype methods, and covers invalid-input cases that do not
 need a live GemStone login.
 `pack:check` validates the publishable npm tarball, checks that `index.js` and
 `index.d.ts` expose the same public helpers, verifies the npm and Cargo versions
-and package metadata match, verifies `Gci` method declarations, and fails if the
-generated platform `.node` binary is missing, duplicated, misnamed, or not
-referenced by the generated loader.
+and package metadata match, verifies the npm entrypoint/export map, verifies
+`Gci` method declarations, and fails if the generated platform `.node` binary is
+missing, duplicated, misnamed, or not referenced by the generated loader.
 
 Release notes, npm provenance guidance, the current platform matrix, and the
 native session-threading roadmap live in `docs/releasing.md`.
