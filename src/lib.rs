@@ -258,6 +258,7 @@ impl Gci {
 
     #[napi(js_name = "fetchBytes")]
     pub fn fetch_bytes(&self, oop: String, start: i64, count: i64) -> Result<Buffer> {
+        let start = validate_fetch_start(start)?;
         let count = fetch_count_to_usize(count)?;
         let mut bytes = vec![0_u8; count];
         let read = unsafe {
@@ -508,6 +509,13 @@ fn fetch_count_to_usize(count: i64) -> Result<usize> {
     Ok(count as usize)
 }
 
+fn validate_fetch_start(start: i64) -> Result<i64> {
+    if start < 1 {
+        return Err(Error::from_reason("fetchBytes start must be positive."));
+    }
+    Ok(start)
+}
+
 fn to_napi_error(error: impl std::fmt::Display) -> Error {
     Error::from_reason(error.to_string())
 }
@@ -548,5 +556,13 @@ mod tests {
         assert_eq!(fetch_count_to_usize(0).unwrap(), 0);
         assert_eq!(fetch_count_to_usize(16).unwrap(), 16);
         assert!(fetch_count_to_usize(-1).is_err());
+    }
+
+    #[test]
+    fn fetch_start_validation_rejects_non_positive_values() {
+        assert_eq!(validate_fetch_start(1).unwrap(), 1);
+        assert_eq!(validate_fetch_start(42).unwrap(), 42);
+        assert!(validate_fetch_start(0).is_err());
+        assert!(validate_fetch_start(-1).is_err());
     }
 }

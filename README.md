@@ -6,6 +6,8 @@
 It exposes the low-level GemStone/S GCI calls needed by the TypeScript client
 and delegates dynamic `libgcirpc` loading to the shared `gemstone-gci` Rust
 crate from [`gemstone-rs`](https://github.com/unicompute/gemstone-rs).
+String and OOP values cross the Node boundary in decimal wire form so JavaScript
+does not lose precision on 64-bit object pointers.
 
 ## Local Checks
 
