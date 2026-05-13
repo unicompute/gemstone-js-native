@@ -40,3 +40,6 @@ helpers, including invalid-input cases that do not need a live GemStone login.
 `index.d.ts` expose the same public helpers, verifies the npm and Cargo versions
 and package metadata match, and fails if the generated platform `.node` binary
 is missing.
+
+Release notes, npm provenance guidance, the current platform matrix, and the
+native session-threading roadmap live in `docs/releasing.md`.
