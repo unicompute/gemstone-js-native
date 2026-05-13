@@ -34,7 +34,12 @@ if (native.oopToCharString(char) !== "A") {
 }
 
 assertThrows(() => native.oopToSmallint("20"), "oopToSmallint should reject non-SmallInteger OOPs.");
+assertThrows(() => native.charToOopString(""), "charToOopString should reject empty strings.");
 assertThrows(() => native.charToOopString("AB"), "charToOopString should reject multi-character strings.");
+
+if (native.oopToCharString("20") !== null) {
+  throw new Error("oopToCharString should return null for non-Character OOPs.");
+}
 
 console.log("@gemstone-js/native Node smoke check passed.");
 
