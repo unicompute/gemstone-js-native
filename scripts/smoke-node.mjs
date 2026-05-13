@@ -33,4 +33,16 @@ if (native.oopToCharString(char) !== "A") {
   throw new Error("Character helpers failed to round-trip A.");
 }
 
+assertThrows(() => native.oopToSmallint("20"), "oopToSmallint should reject non-SmallInteger OOPs.");
+assertThrows(() => native.charToOopString("AB"), "charToOopString should reject multi-character strings.");
+
 console.log("@gemstone-js/native Node smoke check passed.");
+
+function assertThrows(fn, message) {
+  try {
+    fn();
+  } catch {
+    return;
+  }
+  throw new Error(message);
+}

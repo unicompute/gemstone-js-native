@@ -27,6 +27,7 @@ npm run test:node
 npm run pack:check
 ```
 
-`test:node` loads the generated addon through `index.js` and checks the exported
-OOP helpers. `pack:check` validates the publishable npm tarball and fails if the
-generated platform `.node` binary is missing.
+`test:node` loads the generated addon through `index.js` and checks exported OOP
+helpers, including invalid-input cases that do not need a live GemStone login.
+`pack:check` validates the publishable npm tarball and fails if the generated
+platform `.node` binary is missing.
