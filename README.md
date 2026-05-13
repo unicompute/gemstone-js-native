@@ -59,5 +59,6 @@ referenced by the generated loader. It also checks the CI and prebuild workflow
 snippets that produce and upload release artifacts, and guards the release docs
 for artifact checksum, registry signature, and provenance verification steps.
 
-Release notes, npm provenance guidance, the current platform matrix, and the
-native session-threading roadmap live in `docs/releasing.md`.
+Release notes, npm provenance guidance, and the current platform matrix live in
+`docs/releasing.md`. Rust-side error mapping and dedicated session-threading
+design notes live in `docs/native-architecture.md`.

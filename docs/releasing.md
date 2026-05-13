@@ -84,4 +84,5 @@ The current Node wrapper serializes calls at the TypeScript runtime layer. The
 future production model is one dedicated native GCI thread per session with a
 queue from JavaScript into that thread. That should land as a separate native
 architecture change because it affects login, logout, cancellation, error
-propagation, and addon shutdown semantics.
+propagation, and addon shutdown semantics. See `docs/native-architecture.md`
+for the Rust-side error mapping and session-thread design notes.
