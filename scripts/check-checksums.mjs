@@ -36,6 +36,7 @@ try {
     stdio: "pipe",
   });
   assertMismatchFails();
+  assertVerifierInputFailures();
   assertNoMatchFails();
   process.stdout.write("Checksum helper check passed.\n");
 } finally {
@@ -55,6 +56,27 @@ function assertMismatchFails() {
     return;
   }
   throw new Error("verify-checksums.mjs should fail when a file hash does not match.");
+}
+
+function assertVerifierInputFailures() {
+  assertVerifierFails("EMPTY-SHA256SUMS.txt", "");
+  assertVerifierFails("BAD-SHA256SUMS.txt", "not-a-checksum-line\n");
+  assertVerifierFails("MISSING-SHA256SUMS.txt", `${sha256("missing")}  missing.tgz\n`);
+  assertVerifierFails("PATH-SHA256SUMS.txt", `${sha256("nested")}  nested/package.tgz\n`);
+}
+
+function assertVerifierFails(fileName, contents) {
+  writeFileSync(join(workspace, fileName), contents);
+  try {
+    execFileSync(process.execPath, [verifyScript, fileName], {
+      cwd: workspace,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch {
+    return;
+  }
+  throw new Error(`verify-checksums.mjs should fail for invalid manifest ${fileName}.`);
 }
 
 function assertNoMatchFails() {

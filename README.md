@@ -48,8 +48,8 @@ JavaScript buffer length to avoid unchecked narrowing at the FFI call.
 arms, state implementations, docs, and package script contract stay in sync.
 `npm run checksum:check` verifies that the release checksum helper emits stable
 sorted `SHA256SUMS.txt` output, that the verifier accepts matching artifacts
-and rejects mismatches, and that writing checksums fails when no artifact
-suffixes match.
+and rejects mismatches, empty or malformed manifests, missing files, pathful
+entries, and that writing checksums fails when no artifact suffixes match.
 `npm run public-surface:check` verifies that `index.js`, `index.d.ts`, the
 loader patcher, and smoke checks agree on exported helpers and `Gci` methods.
 

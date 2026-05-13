@@ -205,7 +205,11 @@ if (!checksumCheck.includes("write-checksums.mjs")) {
 if (!checksumCheck.includes("SHA256SUMS.txt") || !checksumCheck.includes("no files match")) {
   throw new Error("scripts/check-checksums.mjs must assert checksum output and no-match behavior.");
 }
-if (!checksumCheck.includes("verify-checksums.mjs") || !checksumCheck.includes("assertMismatchFails")) {
+if (
+  !checksumCheck.includes("verify-checksums.mjs")
+  || !checksumCheck.includes("assertMismatchFails")
+  || !checksumCheck.includes("assertVerifierInputFailures")
+) {
   throw new Error("scripts/check-checksums.mjs must assert checksum verification and mismatch behavior.");
 }
 if (!checksumWriter.includes("createHash") || !checksumWriter.includes("sha256")) {
