@@ -277,7 +277,7 @@ impl Gci {
                 "GciFetchBytes_ returned negative byte count {read}."
             )));
         }
-        bytes.truncate((read as usize).min(bytes.len()));
+        bytes.truncate(fetch_read_to_truncate_len(read, bytes.len())?);
         Ok(Buffer::from(bytes))
     }
 
@@ -517,6 +517,17 @@ fn fetch_count_to_usize(count: i64) -> Result<usize> {
     usize::try_from(count).map_err(|_| Error::from_reason("fetchBytes count exceeds usize range."))
 }
 
+fn fetch_read_to_truncate_len(read: i64, buffer_len: usize) -> Result<usize> {
+    if read < 0 {
+        return Err(Error::from_reason(format!(
+            "GciFetchBytes_ returned negative byte count {read}."
+        )));
+    }
+    let read = usize::try_from(read)
+        .map_err(|_| Error::from_reason("GciFetchBytes_ byte count exceeds usize range."))?;
+    Ok(read.min(buffer_len))
+}
+
 fn validate_fetch_start(start: i64) -> Result<i64> {
     if start < 1 {
         return Err(Error::from_reason("fetchBytes start must be positive."));
@@ -588,6 +599,17 @@ mod tests {
         assert!(fetch_count_to_usize(-1).is_err());
         if usize::BITS < i64::BITS {
             assert!(fetch_count_to_usize(i64::MAX).is_err());
+        }
+    }
+
+    #[test]
+    fn fetch_read_validation_clamps_to_buffer_size() {
+        assert_eq!(fetch_read_to_truncate_len(0, 8).unwrap(), 0);
+        assert_eq!(fetch_read_to_truncate_len(4, 8).unwrap(), 4);
+        assert_eq!(fetch_read_to_truncate_len(12, 8).unwrap(), 8);
+        assert!(fetch_read_to_truncate_len(-1, 8).is_err());
+        if usize::BITS < i64::BITS {
+            assert!(fetch_read_to_truncate_len(i64::MAX, 8).is_err());
         }
     }
 
