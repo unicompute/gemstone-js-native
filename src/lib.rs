@@ -521,6 +521,14 @@ impl ExperimentalGciThreadWorker {
             .map_err(Error::from_reason)
     }
 
+    pub fn add_oop_to_export_set(&self, oop: RawOop) -> Result<()> {
+        self.request_unit(|reply| GciThreadCommand::AddOopToExportSet(oop, reply))
+    }
+
+    pub fn remove_oop_from_export_set(&self, oop: RawOop) -> Result<()> {
+        self.request_unit(|reply| GciThreadCommand::RemoveOopFromExportSet(oop, reply))
+    }
+
     #[cfg(test)]
     fn start_for_path_with_readbacks(
         path: PathBuf,
@@ -570,6 +578,12 @@ impl ExperimentalGciThreadWorker {
                         GciThreadCommand::Err(reply) => {
                             let _ = reply.send(state.err());
                         }
+                        GciThreadCommand::AddOopToExportSet(oop, reply) => {
+                            let _ = reply.send(state.add_oop_to_export_set(oop));
+                        }
+                        GciThreadCommand::RemoveOopFromExportSet(oop, reply) => {
+                            let _ = reply.send(state.remove_oop_from_export_set(oop));
+                        }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
                         }
@@ -600,6 +614,24 @@ impl ExperimentalGciThreadWorker {
         receiver.recv().map_err(|_| {
             Error::from_reason("Experimental GCI worker thread closed before replying.")
         })
+    }
+
+    fn request_unit(
+        &self,
+        build_command: impl FnOnce(
+            std::sync::mpsc::Sender<std::result::Result<(), String>>,
+        ) -> GciThreadCommand,
+    ) -> Result<()> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(build_command(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
     }
 }
 
@@ -730,6 +762,49 @@ impl GciThreadState {
             Self::PathOnly { err_info, .. } => Ok(err_info.clone()),
         }
     }
+
+    fn add_oop_to_export_set(&self, oop: RawOop) -> std::result::Result<(), String> {
+        self.call_optional_export_set(
+            &[
+                b"GciAddOopToExportSet" as &[u8],
+                b"GciAddObjToExportSet" as &[u8],
+            ],
+            oop,
+        )
+    }
+
+    fn remove_oop_from_export_set(&self, oop: RawOop) -> std::result::Result<(), String> {
+        self.call_optional_export_set(
+            &[
+                b"GciRemoveOopFromExportSet" as &[u8],
+                b"GciRemoveObjFromExportSet" as &[u8],
+            ],
+            oop,
+        )
+    }
+
+    fn call_optional_export_set(
+        &self,
+        names: &[&[u8]],
+        oop: RawOop,
+    ) -> std::result::Result<(), String> {
+        match self {
+            Self::Live(lib) => {
+                for name in names {
+                    let called = unsafe {
+                        lib.call_optional_oop_export(name, oop)
+                            .map_err(|error| error.to_string())?
+                    };
+                    if called {
+                        return Ok(());
+                    }
+                }
+                Ok(())
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(()),
+        }
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -755,6 +830,14 @@ enum GciThreadCommand {
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
     Err(std::sync::mpsc::Sender<std::result::Result<Option<GciErrorInfo>, String>>),
+    AddOopToExportSet(
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<(), String>>,
+    ),
+    RemoveOopFromExportSet(
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<(), String>>,
+    ),
     ThreadId(std::sync::mpsc::Sender<String>),
     Shutdown,
 }
@@ -1082,6 +1165,8 @@ mod tests {
             object_class
         );
         assert_eq!(worker.err().unwrap(), Some(synthetic_error));
+        worker.add_oop_to_export_set(object).unwrap();
+        worker.remove_oop_from_export_set(object).unwrap();
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())
