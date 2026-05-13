@@ -1,5 +1,6 @@
 export const publicExports = [
   "Gci",
+  "isGemStoneNativeError",
   "smallintToOop",
   "oopToSmallint",
   "isSmallintOop",

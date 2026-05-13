@@ -384,7 +384,12 @@ function mapGciError(error, gci, operation) {
   return mapped
 }
 
+function isGemStoneNativeError(error) {
+  return Boolean(error && typeof error === 'object' && error.code === 'GEMSTONE_GCI_ERROR')
+}
+
 module.exports.Gci = Gci
+module.exports.isGemStoneNativeError = isGemStoneNativeError
 module.exports.smallintToOop = smallintToOop
 module.exports.oopToSmallint = oopToSmallint
 module.exports.isSmallintOop = isSmallintOop

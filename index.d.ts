@@ -25,6 +25,7 @@ export interface GemStoneNativeError extends Error {
   reason?: string
   info?: GciErrorInfo
 }
+export declare function isGemStoneNativeError(error: unknown): error is GemStoneNativeError
 export interface SymDictLookup {
   value: string
   assoc: string

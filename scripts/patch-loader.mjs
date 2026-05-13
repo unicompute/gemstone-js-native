@@ -12,10 +12,12 @@ const requiredPatchedSnippets = [
   "const mappedGciMethods = [",
   "class Gci extends NativeGci",
   "function mapGciError(error, gci, operation)",
+  "function isGemStoneNativeError(error)",
   "mapped.code = 'GEMSTONE_GCI_ERROR'",
   "mapped.operation = operation",
   "mapped.gciNumber = info.number",
   "module.exports.Gci = Gci",
+  "module.exports.isGemStoneNativeError = isGemStoneNativeError",
 ];
 
 if (source.includes("GEMSTONE_GCI_ERROR")) {
@@ -128,7 +130,12 @@ function mapGciError(error, gci, operation) {
   return mapped
 }
 
+function isGemStoneNativeError(error) {
+  return Boolean(error && typeof error === 'object' && error.code === 'GEMSTONE_GCI_ERROR')
+}
+
 module.exports.Gci = Gci
+module.exports.isGemStoneNativeError = isGemStoneNativeError
 module.exports.smallintToOop = smallintToOop
 module.exports.oopToSmallint = oopToSmallint
 module.exports.isSmallintOop = isSmallintOop

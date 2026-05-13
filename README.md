@@ -13,7 +13,8 @@ argument counts, byte ranges, byte counts returned from GCI, and session ids
 before dispatching into GCI so bad JavaScript inputs fail at the boundary.
 Thrown `Gci` method errors are decorated with `code: "GEMSTONE_GCI_ERROR"`,
 the operation name, and any available `GciErr` number, fatal flag, message, and
-reason fields.
+reason fields. `isGemStoneNativeError()` is exported as a small runtime/type
+guard for that standardized error shape.
 
 ## Local Checks
 

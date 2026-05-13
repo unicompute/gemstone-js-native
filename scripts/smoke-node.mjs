@@ -46,11 +46,17 @@ assertThrows(() => native.oopToSmallint("+20"), "oopToSmallint should reject sig
 assertThrows(() => native.oopToSmallint("-20"), "oopToSmallint should reject negative OOP strings.");
 assertThrows(() => native.charToOopString(""), "charToOopString should reject empty strings.");
 assertThrows(() => native.charToOopString("AB"), "charToOopString should reject multi-character strings.");
-assertMappedGciError(
+const constructorError = assertMappedGciError(
   () => new native.Gci("/definitely/missing/libgcirpc.dylib"),
   "constructor",
   "Gci constructor should decorate native loading errors.",
 );
+if (!native.isGemStoneNativeError(constructorError)) {
+  throw new Error("isGemStoneNativeError should recognize mapped Gci errors.");
+}
+if (native.isGemStoneNativeError(new Error("plain")) || native.isGemStoneNativeError(null)) {
+  throw new Error("isGemStoneNativeError should reject non-GemStone errors.");
+}
 assertPatchLoaderPatchesGeneratedFixture();
 
 if (native.oopToCharString("20") !== null) {
@@ -79,7 +85,7 @@ function assertMappedGciError(fn, operation, message) {
       && error.operation === operation
       && String(error.message).includes(`${operation} failed`)
     ) {
-      return;
+      return error;
     }
     throw new Error(`${message} Got ${String(error?.message ?? error)}.`);
   }
@@ -98,7 +104,11 @@ function assertPatchLoaderPatchesGeneratedFixture() {
     );
     execFileSync(process.execPath, [patchScript, "--loader", loaderPath], { encoding: "utf8" });
     const patched = readFileSync(loaderPath, "utf8");
-    if (!patched.includes("GEMSTONE_GCI_ERROR") || !patched.includes("class Gci extends NativeGci")) {
+    if (
+      !patched.includes("GEMSTONE_GCI_ERROR")
+      || !patched.includes("class Gci extends NativeGci")
+      || !patched.includes("module.exports.isGemStoneNativeError = isGemStoneNativeError")
+    ) {
       throw new Error("patch-loader did not apply GemStone GCI error mapping to a generated loader fixture.");
     }
     execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--check"], { encoding: "utf8" });
