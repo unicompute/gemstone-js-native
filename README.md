@@ -56,7 +56,8 @@ and package metadata match, verifies the npm entrypoint/export map, verifies
 the npm script contract, verifies `Gci` method declarations, and fails if the
 generated platform `.node` binary is missing, duplicated, misnamed, or not
 referenced by the generated loader. It also checks the CI and prebuild workflow
-snippets that produce and upload release artifacts.
+snippets that produce and upload release artifacts, and guards the release docs
+for artifact checksum, registry signature, and provenance verification steps.
 
 Release notes, npm provenance guidance, the current platform matrix, and the
 native session-threading roadmap live in `docs/releasing.md`.

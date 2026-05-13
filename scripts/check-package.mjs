@@ -54,6 +54,9 @@ if (normalizeRepositoryUrl(packageJson.repository?.url) !== normalizeRepositoryU
 if (packageJson.publishConfig?.provenance !== true) {
   throw new Error("package.json publishConfig.provenance must be true.");
 }
+if (packageJson.publishConfig?.access !== "public") {
+  throw new Error("package.json publishConfig.access must be public.");
+}
 if (packageJson.main !== "./index.js") {
   throw new Error(`package.json main must be ./index.js, found ${packageJson.main}.`);
 }
@@ -139,6 +142,7 @@ const declarations = readFileSync("index.d.ts", "utf8");
 const loader = readFileSync("index.js", "utf8");
 const prebuildWorkflow = readFileSync(".github/workflows/prebuild.yml", "utf8");
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const releasingDocs = readFileSync("docs/releasing.md", "utf8");
 try {
   execFileSync(process.execPath, ["scripts/patch-loader.mjs", "--check"], { stdio: "pipe" });
 } catch (error) {
@@ -175,7 +179,7 @@ for (const name of gciMethods) {
     throw new Error(`index.d.ts is missing Gci method declaration: ${name}`);
   }
 }
-assertWorkflow(
+assertSnippets(
   ".github/workflows/prebuild.yml",
   prebuildWorkflow,
   [
@@ -197,7 +201,7 @@ assertWorkflow(
     "*.tgz",
   ],
 );
-assertWorkflow(
+assertSnippets(
   ".github/workflows/ci.yml",
   ciWorkflow,
   [
@@ -212,6 +216,17 @@ assertWorkflow(
     "npm pack --json",
     "actions/upload-artifact@v4",
     "*.tgz",
+  ],
+);
+assertSnippets(
+  "docs/releasing.md",
+  releasingDocs,
+  [
+    "npm publish --access public --provenance",
+    "npm audit signatures",
+    "dist.integrity",
+    "dist.signatures",
+    "shasum -a 256",
   ],
 );
 
@@ -248,10 +263,10 @@ function normalizeRepositoryUrl(value) {
     .replace(/\/$/, "");
 }
 
-function assertWorkflow(path, contents, snippets) {
+function assertSnippets(path, contents, snippets) {
   for (const snippet of snippets) {
     if (!contents.includes(snippet)) {
-      throw new Error(`${path} is missing required release workflow snippet: ${JSON.stringify(snippet)}.`);
+      throw new Error(`${path} is missing required release verification snippet: ${JSON.stringify(snippet)}.`);
     }
   }
 }

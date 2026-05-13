@@ -34,6 +34,7 @@ package:
 ```sh
 npm pack --dry-run --json
 tar -tzf gemstone-js-native-*.tgz
+shasum -a 256 gemstone-js-native-*.tgz index.*.node
 ```
 
 Check that the tarball contains `index.js`, `index.d.ts`, `README.md`,
@@ -44,15 +45,30 @@ Install the `.tgz` into a disposable project and run `node -e
 "const n=require('@gemstone-js/native'); console.log(typeof n.Gci)"` to verify
 the loader resolves the packed binary.
 
+## Provenance Verification
+
+After publishing, verify the registry metadata and signatures from a disposable
+project:
+
+```sh
+VERSION=$(node -p "require('./package.json').version")
+npm view @gemstone-js/native@$VERSION dist.integrity dist.signatures --json
+npm install @gemstone-js/native@$VERSION
+npm audit signatures
+```
+
+The metadata must include `dist.integrity` and `dist.signatures`, and
+`npm audit signatures` must complete without signature or provenance failures.
+
 ## Publish Checklist
 
 1. Verify `package.json` and `Cargo.toml` version, license, homepage,
    repository, and description match, and that `package.json` has
-   `publishConfig.provenance`.
+   `publishConfig.access` set to `public` and `publishConfig.provenance`.
 2. Run `npm run pack:check` locally after `npm run build`.
 3. Review the workflow tarball artifact contents with the artifact inspection
    checklist above.
-4. Publish with provenance:
+4. Publish with provenance from a trusted CI or local environment:
 
 ```sh
 npm publish --access public --provenance
