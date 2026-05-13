@@ -1,52 +1,10 @@
 import { createRequire } from "node:module";
+import { gciMethods, publicExports } from "./public-surface.mjs";
 
 const require = createRequire(import.meta.url);
 const native = require("..");
 
-const required = [
-  "Gci",
-  "smallintToOop",
-  "oopToSmallint",
-  "isSmallintOop",
-  "boolToOop",
-  "charToOopString",
-  "oopToCharString",
-];
-const gciMethods = [
-  "init",
-  "libraryPath",
-  "encrypt",
-  "setNet",
-  "loginEx",
-  "logout",
-  "commit",
-  "abort",
-  "err",
-  "executeStr",
-  "perform",
-  "newString",
-  "newSymbol",
-  "newOop",
-  "resolveSymbol",
-  "fetchClass",
-  "fetchSize",
-  "fetchBytes",
-  "getSessionId",
-  "setSessionId",
-  "needsCommit",
-  "inTransaction",
-  "fltToOop",
-  "oopToFlt",
-  "symDictAt",
-  "symDictAtPut",
-  "symDictAtObjPut",
-  "strKeyValueDictAt",
-  "strKeyValueDictAtPut",
-  "addOopToExportSet",
-  "removeOopFromExportSet",
-];
-
-for (const name of required) {
+for (const name of publicExports) {
   if (typeof native[name] !== "function") {
     throw new Error(`@gemstone-js/native is missing ${name} export.`);
   }

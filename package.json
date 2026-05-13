@@ -26,6 +26,7 @@
     "README.md",
     "LICENSE",
     "scripts/check-package.mjs",
+    "scripts/public-surface.mjs",
     "scripts/smoke-node.mjs",
     "*.node"
   ],

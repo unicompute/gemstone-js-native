@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gciMethods, publicExports } from "./public-surface.mjs";
 
 const cache = mkdtempSync(join(tmpdir(), "gemstone-js-native-npm-cache-"));
 
@@ -61,6 +62,7 @@ const required = [
   "index.js",
   "package.json",
   "scripts/check-package.mjs",
+  "scripts/public-surface.mjs",
   "scripts/smoke-node.mjs",
 ];
 
@@ -70,49 +72,6 @@ const forbidden = [
   "Cargo.lock",
   "src",
   "target",
-];
-
-const publicExports = [
-  "Gci",
-  "smallintToOop",
-  "oopToSmallint",
-  "isSmallintOop",
-  "boolToOop",
-  "charToOopString",
-  "oopToCharString",
-];
-const gciMethods = [
-  "init",
-  "libraryPath",
-  "encrypt",
-  "setNet",
-  "loginEx",
-  "logout",
-  "commit",
-  "abort",
-  "err",
-  "executeStr",
-  "perform",
-  "newString",
-  "newSymbol",
-  "newOop",
-  "resolveSymbol",
-  "fetchClass",
-  "fetchSize",
-  "fetchBytes",
-  "getSessionId",
-  "setSessionId",
-  "needsCommit",
-  "inTransaction",
-  "fltToOop",
-  "oopToFlt",
-  "symDictAt",
-  "symDictAtPut",
-  "symDictAtObjPut",
-  "strKeyValueDictAt",
-  "strKeyValueDictAtPut",
-  "addOopToExportSet",
-  "removeOopFromExportSet",
 ];
 
 for (const path of required) {
