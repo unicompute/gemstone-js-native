@@ -33,6 +33,7 @@
     "scripts/check-public-surface.mjs",
     "scripts/check-session-thread-spike.mjs",
     "scripts/smoke-node.mjs",
+    "scripts/verify-checksums.mjs",
     "scripts/write-checksums.mjs",
     "*.node"
   ],
@@ -48,6 +49,7 @@
     "public-surface:check": "node scripts/check-public-surface.mjs",
     "session-thread:check": "node scripts/check-session-thread-spike.mjs",
     "checksum:check": "node scripts/check-checksums.mjs",
+    "checksum:verify": "node scripts/verify-checksums.mjs",
     "verify": "npm run fmt:check && cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run public-surface:check && npm run test:node && npm run loader:check && npm run pack:check"
   },
   "devDependencies": {

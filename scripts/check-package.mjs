@@ -88,6 +88,7 @@ const required = [
   "scripts/check-public-surface.mjs",
   "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
+  "scripts/verify-checksums.mjs",
   "scripts/write-checksums.mjs",
 ];
 
@@ -111,6 +112,7 @@ const requiredFileEntries = [
   "scripts/check-public-surface.mjs",
   "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
+  "scripts/verify-checksums.mjs",
   "scripts/write-checksums.mjs",
   "*.node",
 ];
@@ -126,6 +128,7 @@ const requiredScripts = {
   "public-surface:check": "node scripts/check-public-surface.mjs",
   "session-thread:check": "node scripts/check-session-thread-spike.mjs",
   "checksum:check": "node scripts/check-checksums.mjs",
+  "checksum:verify": "node scripts/verify-checksums.mjs",
   verify: "npm run fmt:check && cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run public-surface:check && npm run test:node && npm run loader:check && npm run pack:check",
 };
 
@@ -177,6 +180,7 @@ const publicSurfaceCheck = readFileSync("scripts/check-public-surface.mjs", "utf
 const sessionThreadCheck = readFileSync("scripts/check-session-thread-spike.mjs", "utf8");
 const checksumCheck = readFileSync("scripts/check-checksums.mjs", "utf8");
 const checksumWriter = readFileSync("scripts/write-checksums.mjs", "utf8");
+const checksumVerifier = readFileSync("scripts/verify-checksums.mjs", "utf8");
 if (!nodeSmoke.includes("assertMappedGciError")) {
   throw new Error("scripts/smoke-node.mjs must assert mapped Gci errors.");
 }
@@ -201,8 +205,14 @@ if (!checksumCheck.includes("write-checksums.mjs")) {
 if (!checksumCheck.includes("SHA256SUMS.txt") || !checksumCheck.includes("no files match")) {
   throw new Error("scripts/check-checksums.mjs must assert checksum output and no-match behavior.");
 }
+if (!checksumCheck.includes("verify-checksums.mjs") || !checksumCheck.includes("assertMismatchFails")) {
+  throw new Error("scripts/check-checksums.mjs must assert checksum verification and mismatch behavior.");
+}
 if (!checksumWriter.includes("createHash") || !checksumWriter.includes("sha256")) {
   throw new Error("scripts/write-checksums.mjs must compute sha256 digests.");
+}
+if (!checksumVerifier.includes("createHash") || !checksumVerifier.includes("Checksum mismatch")) {
+  throw new Error("scripts/verify-checksums.mjs must verify sha256 digests and report mismatches.");
 }
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {
@@ -234,6 +244,7 @@ assertSnippets(
     "npm run verify",
     "npm pack --json",
     "node scripts/write-checksums.mjs .node .tgz",
+    "node scripts/verify-checksums.mjs SHA256SUMS.txt",
     "actions/upload-artifact@v4",
     "*.node",
     "*.tgz",
@@ -252,6 +263,7 @@ assertSnippets(
     "npm run verify",
     "npm pack --json",
     "node scripts/write-checksums.mjs .tgz",
+    "node scripts/verify-checksums.mjs SHA256SUMS.txt",
     "actions/upload-artifact@v4",
     "*.tgz",
     "SHA256SUMS.txt",
@@ -267,6 +279,7 @@ assertSnippets(
     "dist.signatures",
     "shasum -a 256",
     "SHA256SUMS.txt",
+    "node scripts/verify-checksums.mjs SHA256SUMS.txt",
   ],
 );
 

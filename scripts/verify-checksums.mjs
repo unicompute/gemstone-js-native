@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+
+const manifest = process.argv[2] ?? "SHA256SUMS.txt";
+const manifestPath = resolve(manifest);
+if (!existsSync(manifestPath)) {
+  fail(`Checksum manifest not found: ${manifest}`);
+}
+
+const baseDir = dirname(manifestPath);
+const lines = readFileSync(manifestPath, "utf8")
+  .split(/\r?\n/)
+  .filter((line) => line.trim().length > 0);
+
+if (lines.length === 0) {
+  fail(`Checksum manifest is empty: ${manifest}`);
+}
+
+for (const line of lines) {
+  const match = line.match(/^([a-fA-F0-9]{64})  ([^\r\n]+)$/);
+  if (!match) {
+    fail(`Invalid checksum line: ${line}`);
+  }
+  const [, expected, fileName] = match;
+  if (fileName.includes("/") || fileName.includes("\\")) {
+    fail(`Checksum file entries must be basenames: ${fileName}`);
+  }
+  const filePath = resolve(baseDir, fileName);
+  if (!existsSync(filePath)) {
+    fail(`Checksum target not found: ${fileName}`);
+  }
+  const actual = createHash("sha256").update(readFileSync(filePath)).digest("hex");
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    fail(`Checksum mismatch for ${fileName}: expected ${expected}, got ${actual}`);
+  }
+}
+
+process.stdout.write(`Verified ${lines.length} checksum(s) from ${manifest}.\n`);
+
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}

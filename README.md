@@ -47,7 +47,9 @@ JavaScript buffer length to avoid unchecked narrowing at the FFI call.
 `ExperimentalGciThreadWorker` command enum, public wrapper methods, dispatch
 arms, state implementations, docs, and package script contract stay in sync.
 `npm run checksum:check` verifies that the release checksum helper emits stable
-sorted `SHA256SUMS.txt` output and fails when no artifact suffixes match.
+sorted `SHA256SUMS.txt` output, that the verifier accepts matching artifacts
+and rejects mismatches, and that writing checksums fails when no artifact
+suffixes match.
 `npm run public-surface:check` verifies that `index.js`, `index.d.ts`, the
 loader patcher, and smoke checks agree on exported helpers and `Gci` methods.
 
@@ -77,9 +79,9 @@ the npm script contract, verifies `Gci` method declarations, checks the
 session-thread spike coverage guard, checks the checksum helper self-test,
 checks the public surface guard, and fails if the generated platform `.node`
 binary is missing, duplicated, misnamed, or not referenced by the generated
-loader. It also checks the CI and prebuild workflow snippets that produce and
-upload release artifacts, and guards the release docs for artifact checksum,
-registry signature, and provenance verification steps.
+loader. It also checks the CI and prebuild workflow snippets that produce,
+verify, and upload release artifacts, and guards the release docs for artifact
+checksum, registry signature, and provenance verification steps.
 
 Release notes, npm provenance guidance, and the current platform matrix live in
 `docs/releasing.md`. Rust-side error mapping and dedicated session-threading

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const script = fileURLToPath(new URL("./write-checksums.mjs", import.meta.url));
+const verifyScript = fileURLToPath(new URL("./verify-checksums.mjs", import.meta.url));
 const workspace = mkdtempSync(join(tmpdir(), "gemstone-js-native-checksums-"));
 
 try {
@@ -29,10 +30,31 @@ try {
     throw new Error(`Unexpected SHA256SUMS.txt content.\nExpected:\n${expected}\nActual:\n${actual}`);
   }
 
+  execFileSync(process.execPath, [verifyScript, "SHA256SUMS.txt"], {
+    cwd: workspace,
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+  assertMismatchFails();
   assertNoMatchFails();
   process.stdout.write("Checksum helper check passed.\n");
 } finally {
   rmSync(workspace, { recursive: true, force: true });
+}
+
+function assertMismatchFails() {
+  writeFileSync(join(workspace, "package.tgz"), "tampered-package-tarball");
+  try {
+    execFileSync(process.execPath, [verifyScript, "SHA256SUMS.txt"], {
+      cwd: workspace,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch {
+    writeFileSync(join(workspace, "package.tgz"), "package-tarball");
+    return;
+  }
+  throw new Error("verify-checksums.mjs should fail when a file hash does not match.");
 }
 
 function assertNoMatchFails() {

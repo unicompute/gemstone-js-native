@@ -19,15 +19,18 @@ npm run build
 npm run verify
 npm pack --json
 node scripts/write-checksums.mjs .node .tgz
+node scripts/verify-checksums.mjs SHA256SUMS.txt
 ```
 
 The workflow uploads the `.node` file, npm tarball, and `SHA256SUMS.txt` as
 GitHub Actions artifacts so the package contents can be inspected before
 publishing.
 `npm run pack:check` verifies that both CI workflows still build, run
-`npm run verify`, pack, and upload the expected release artifacts. The local
-`npm run checksum:check` script also verifies that the checksum writer produces
-stable sorted output and fails when no artifact suffixes match.
+`npm run verify`, pack, verify checksums, and upload the expected release
+artifacts. The local `npm run checksum:check` script also verifies that the
+checksum writer produces stable sorted output, that the checksum verifier
+accepts matching artifacts and rejects mismatches, and that writing checksums
+fails when no artifact suffixes match.
 `npm run public-surface:check` verifies that the generated loader, TypeScript
 declarations, loader patcher, and smoke checks agree on exported helpers and
 `Gci` methods before publishing.
@@ -41,6 +44,7 @@ Before `npm publish`, compare at least one CI tarball with a local package:
 ```sh
 npm pack --json
 node scripts/write-checksums.mjs .node .tgz
+node scripts/verify-checksums.mjs SHA256SUMS.txt
 tar -tzf gemstone-js-native-*.tgz
 shasum -a 256 gemstone-js-native-*.tgz index.*.node
 shasum -a 256 -c SHA256SUMS.txt
