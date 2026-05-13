@@ -18,6 +18,16 @@ try {
 
 const files = pack.files.map((file) => file.path);
 const fileSet = new Set(files);
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+const cargoToml = readFileSync("Cargo.toml", "utf8");
+const cargoVersion = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+
+if (!cargoVersion) {
+  throw new Error("Cargo.toml is missing a package version.");
+}
+if (packageJson.version !== cargoVersion) {
+  throw new Error(`package.json version ${packageJson.version} does not match Cargo.toml version ${cargoVersion}.`);
+}
 
 const required = [
   "LICENSE",
