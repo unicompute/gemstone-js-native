@@ -529,6 +529,22 @@ impl ExperimentalGciThreadWorker {
         self.request_unit(|reply| GciThreadCommand::RemoveOopFromExportSet(oop, reply))
     }
 
+    pub fn commit(&self) -> Result<bool> {
+        self.request_bool(GciThreadCommand::Commit)
+    }
+
+    pub fn abort(&self) -> Result<bool> {
+        self.request_bool(GciThreadCommand::Abort)
+    }
+
+    pub fn needs_commit(&self) -> Result<bool> {
+        self.request_bool(GciThreadCommand::NeedsCommit)
+    }
+
+    pub fn in_transaction(&self) -> Result<bool> {
+        self.request_bool(GciThreadCommand::InTransaction)
+    }
+
     #[cfg(test)]
     fn start_for_path_with_readbacks(
         path: PathBuf,
@@ -545,6 +561,10 @@ impl ExperimentalGciThreadWorker {
             executions: executions.into_iter().collect(),
             performs: performs.into_iter().collect(),
             err_info,
+            commit_result: true,
+            abort_result: true,
+            needs_commit: true,
+            in_transaction: false,
         })
     }
 
@@ -583,6 +603,18 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::RemoveOopFromExportSet(oop, reply) => {
                             let _ = reply.send(state.remove_oop_from_export_set(oop));
+                        }
+                        GciThreadCommand::Commit(reply) => {
+                            let _ = reply.send(state.commit());
+                        }
+                        GciThreadCommand::Abort(reply) => {
+                            let _ = reply.send(state.abort());
+                        }
+                        GciThreadCommand::NeedsCommit(reply) => {
+                            let _ = reply.send(state.needs_commit());
+                        }
+                        GciThreadCommand::InTransaction(reply) => {
+                            let _ = reply.send(state.in_transaction());
                         }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
@@ -633,6 +665,24 @@ impl ExperimentalGciThreadWorker {
             })?
             .map_err(Error::from_reason)
     }
+
+    fn request_bool(
+        &self,
+        build_command: impl FnOnce(
+            std::sync::mpsc::Sender<std::result::Result<bool, String>>,
+        ) -> GciThreadCommand,
+    ) -> Result<bool> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(build_command(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -656,6 +706,10 @@ enum GciThreadState {
         executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
         performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
         err_info: Option<GciErrorInfo>,
+        commit_result: bool,
+        abort_result: bool,
+        needs_commit: bool,
+        in_transaction: bool,
     },
 }
 
@@ -805,6 +859,60 @@ impl GciThreadState {
             Self::PathOnly { .. } => Ok(()),
         }
     }
+
+    fn commit(&self) -> std::result::Result<bool, String> {
+        match self {
+            Self::Live(lib) => {
+                let mut err = GciErrSType::default();
+                unsafe {
+                    lib.gci_commit(&mut err)
+                        .map(|ok| ok != 0)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { commit_result, .. } => Ok(*commit_result),
+        }
+    }
+
+    fn abort(&self) -> std::result::Result<bool, String> {
+        match self {
+            Self::Live(lib) => {
+                let mut err = GciErrSType::default();
+                unsafe {
+                    lib.gci_abort(&mut err)
+                        .map(|ok| ok != 0)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { abort_result, .. } => Ok(*abort_result),
+        }
+    }
+
+    fn needs_commit(&self) -> std::result::Result<bool, String> {
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_needs_commit()
+                    .map(|ok| ok != 0)
+                    .map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { needs_commit, .. } => Ok(*needs_commit),
+        }
+    }
+
+    fn in_transaction(&self) -> std::result::Result<bool, String> {
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_in_transaction()
+                    .map(|ok| ok != 0)
+                    .map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { in_transaction, .. } => Ok(*in_transaction),
+        }
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -838,6 +946,10 @@ enum GciThreadCommand {
         RawOop,
         std::sync::mpsc::Sender<std::result::Result<(), String>>,
     ),
+    Commit(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
+    Abort(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
+    NeedsCommit(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
+    InTransaction(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
     ThreadId(std::sync::mpsc::Sender<String>),
     Shutdown,
 }
@@ -1167,6 +1279,10 @@ mod tests {
         assert_eq!(worker.err().unwrap(), Some(synthetic_error));
         worker.add_oop_to_export_set(object).unwrap();
         worker.remove_oop_from_export_set(object).unwrap();
+        assert!(worker.commit().unwrap());
+        assert!(worker.abort().unwrap());
+        assert!(worker.needs_commit().unwrap());
+        assert!(!worker.in_transaction().unwrap());
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())
