@@ -317,6 +317,7 @@ impl Gci {
 
     #[napi(js_name = "fltToOop")]
     pub fn flt_to_oop(&self, value: f64) -> Result<String> {
+        let value = validate_finite_float(value)?;
         unsafe {
             self.lib
                 .gci_flt_to_oop(value)
@@ -529,6 +530,13 @@ fn validate_session_id(session_id: i32) -> Result<i32> {
     Ok(session_id)
 }
 
+fn validate_finite_float(value: f64) -> Result<f64> {
+    if !value.is_finite() {
+        return Err(Error::from_reason("Float value must be finite."));
+    }
+    Ok(value)
+}
+
 fn to_napi_error(error: impl std::fmt::Display) -> Error {
     Error::from_reason(error.to_string())
 }
@@ -587,6 +595,14 @@ mod tests {
         assert_eq!(validate_session_id(0).unwrap(), 0);
         assert_eq!(validate_session_id(42).unwrap(), 42);
         assert!(validate_session_id(-1).is_err());
+    }
+
+    #[test]
+    fn float_validation_rejects_non_finite_values() {
+        assert_eq!(validate_finite_float(3.25).unwrap(), 3.25);
+        assert!(validate_finite_float(f64::NAN).is_err());
+        assert!(validate_finite_float(f64::INFINITY).is_err());
+        assert!(validate_finite_float(f64::NEG_INFINITY).is_err());
     }
 
     #[test]
