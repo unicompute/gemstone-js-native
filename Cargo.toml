@@ -10,6 +10,10 @@ description = "napi-rs native GCI bindings for gemstone-js."
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+default = []
+session-thread-spike = []
+
 [dependencies]
 gemstone-gci = { git = "https://github.com/unicompute/gemstone-rs", package = "gemstone-gci", branch = "main" }
 napi = { version = "2", default-features = false, features = ["napi8"] }

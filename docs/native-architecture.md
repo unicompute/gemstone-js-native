@@ -56,3 +56,16 @@ Open design questions:
 The first implementation slice should be a feature-gated worker-thread wrapper
 around one or two read-only calls, followed by `executeStr()` and `perform()`
 once error mapping has moved into Rust.
+
+### Current Spike
+
+The `session-thread-spike` Cargo feature now compiles an
+`ExperimentalGciThreadWorker`. The worker owns a background Rust thread and
+routes the read-only `library_path()` request through a channel before replying
+to the caller. The feature test verifies that the call is answered from a
+different OS thread without requiring a live Stone or a loadable GCI library.
+
+This deliberately avoids changing the JavaScript API. It is only a native
+architecture slice that validates the queue/thread/drop shape before moving
+session-bound operations such as `executeStr()`, `perform()`, `err()`, and
+export-set retain/release onto the worker.

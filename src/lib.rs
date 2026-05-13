@@ -429,6 +429,110 @@ impl Gci {
     }
 }
 
+#[cfg(feature = "session-thread-spike")]
+pub struct ExperimentalGciThreadWorker {
+    sender: std::sync::mpsc::Sender<GciThreadCommand>,
+    join: Option<std::thread::JoinHandle<()>>,
+}
+
+#[cfg(feature = "session-thread-spike")]
+impl ExperimentalGciThreadWorker {
+    pub fn start(lib: GciLibrary) -> Result<Self> {
+        Self::spawn(GciThreadState::Live(lib))
+    }
+
+    pub fn library_path(&self) -> Result<String> {
+        self.request_string(GciThreadCommand::LibraryPath)
+    }
+
+    #[cfg(test)]
+    fn start_for_path(path: PathBuf) -> Result<Self> {
+        Self::spawn(GciThreadState::PathOnly(path))
+    }
+
+    #[cfg(test)]
+    fn worker_thread_id_debug(&self) -> Result<String> {
+        self.request_string(GciThreadCommand::ThreadId)
+    }
+
+    fn spawn(state: GciThreadState) -> Result<Self> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let join = std::thread::Builder::new()
+            .name("gemstone-js-gci-session-spike".to_string())
+            .spawn(move || {
+                while let Ok(command) = receiver.recv() {
+                    match command {
+                        GciThreadCommand::LibraryPath(reply) => {
+                            let _ = reply.send(state.library_path());
+                        }
+                        GciThreadCommand::ThreadId(reply) => {
+                            let _ = reply.send(format!("{:?}", std::thread::current().id()));
+                        }
+                        GciThreadCommand::Shutdown => break,
+                    }
+                }
+            })
+            .map_err(|error| {
+                Error::from_reason(format!(
+                    "Cannot start experimental GCI worker thread: {error}"
+                ))
+            })?;
+
+        Ok(Self {
+            sender,
+            join: Some(join),
+        })
+    }
+
+    fn request_string(
+        &self,
+        build_command: impl FnOnce(std::sync::mpsc::Sender<String>) -> GciThreadCommand,
+    ) -> Result<String> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(build_command(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver.recv().map_err(|_| {
+            Error::from_reason("Experimental GCI worker thread closed before replying.")
+        })
+    }
+}
+
+#[cfg(feature = "session-thread-spike")]
+impl Drop for ExperimentalGciThreadWorker {
+    fn drop(&mut self) {
+        let _ = self.sender.send(GciThreadCommand::Shutdown);
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
+    }
+}
+
+#[cfg(feature = "session-thread-spike")]
+enum GciThreadState {
+    Live(GciLibrary),
+    #[cfg(test)]
+    PathOnly(PathBuf),
+}
+
+#[cfg(feature = "session-thread-spike")]
+impl GciThreadState {
+    fn library_path(&self) -> String {
+        match self {
+            Self::Live(lib) => lib.path().display().to_string(),
+            #[cfg(test)]
+            Self::PathOnly(path) => path.display().to_string(),
+        }
+    }
+}
+
+#[cfg(feature = "session-thread-spike")]
+enum GciThreadCommand {
+    LibraryPath(std::sync::mpsc::Sender<String>),
+    ThreadId(std::sync::mpsc::Sender<String>),
+    Shutdown,
+}
+
 #[napi(js_name = "smallintToOop")]
 pub fn smallint_to_oop(value: i64) -> String {
     oop_string(i64_to_smallint(value))
@@ -699,6 +803,19 @@ mod tests {
         assert_eq!(oop_to_char_string(OOP_NIL.to_string()).unwrap(), None);
         assert!(char_to_oop_string(String::new()).is_err());
         assert!(char_to_oop_string("AB".to_string()).is_err());
+    }
+
+    #[cfg(feature = "session-thread-spike")]
+    #[test]
+    fn experimental_worker_routes_read_only_calls_on_worker_thread() {
+        let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
+        let worker = ExperimentalGciThreadWorker::start_for_path(path.clone()).unwrap();
+
+        assert_eq!(worker.library_path().unwrap(), path.display().to_string());
+        assert_ne!(
+            worker.worker_thread_id_debug().unwrap(),
+            format!("{:?}", std::thread::current().id())
+        );
     }
 
     fn write_c_char_array<const N: usize>(target: &mut [c_char; N], value: &str) {

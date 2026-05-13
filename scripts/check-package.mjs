@@ -114,6 +114,7 @@ const requiredScripts = {
   "test:node": "node scripts/smoke-node.mjs",
   "pack:check": "node scripts/check-package.mjs",
   "loader:check": "node scripts/patch-loader.mjs --check",
+  verify: "cargo test && cargo test --features session-thread-spike && npm run test:node && npm run loader:check && npm run pack:check",
 };
 
 for (const path of required) {
@@ -193,8 +194,7 @@ assertSnippets(
     "windows-latest",
     "node-version: 24",
     "npm run build",
-    "npm run test:node",
-    "npm run pack:check",
+    "npm run verify",
     "npm pack --json",
     "actions/upload-artifact@v4",
     "*.node",
@@ -209,10 +209,8 @@ assertSnippets(
     "branches: [main]",
     "node-version: 24",
     "cargo fmt --check",
-    "cargo test",
     "npm run build",
-    "npm run test:node",
-    "npm run pack:check",
+    "npm run verify",
     "npm pack --json",
     "actions/upload-artifact@v4",
     "*.tgz",

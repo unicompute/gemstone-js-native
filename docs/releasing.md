@@ -16,15 +16,14 @@ Each job runs:
 ```sh
 npm install
 npm run build
-npm run test:node
-npm run pack:check
+npm run verify
 npm pack --json
 ```
 
 The workflow uploads the `.node` file and npm tarball as GitHub Actions
 artifacts so the package contents can be inspected before publishing.
-`npm run pack:check` verifies that both CI workflows still build, smoke test,
-pack, and upload the expected release artifacts.
+`npm run pack:check` verifies that both CI workflows still build, run
+`npm run verify`, pack, and upload the expected release artifacts.
 
 ## Artifact Inspection
 
@@ -65,7 +64,7 @@ The metadata must include `dist.integrity` and `dist.signatures`, and
 1. Verify `package.json` and `Cargo.toml` version, license, homepage,
    repository, and description match, and that `package.json` has
    `publishConfig.access` set to `public` and `publishConfig.provenance`.
-2. Run `npm run pack:check` locally after `npm run build`.
+2. Run `npm run verify` locally after `npm run build`.
 3. Review the workflow tarball artifact contents with the artifact inspection
    checklist above.
 4. Publish with provenance from a trusted CI or local environment:
