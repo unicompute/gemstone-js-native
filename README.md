@@ -34,4 +34,5 @@ npm run pack:check
 helpers, including invalid-input cases that do not need a live GemStone login.
 `pack:check` validates the publishable npm tarball, checks that `index.js` and
 `index.d.ts` expose the same public helpers, verifies the npm and Cargo versions
-match, and fails if the generated platform `.node` binary is missing.
+and package metadata match, and fails if the generated platform `.node` binary
+is missing.

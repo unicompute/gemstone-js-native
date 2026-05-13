@@ -21,12 +21,24 @@ const fileSet = new Set(files);
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 const cargoToml = readFileSync("Cargo.toml", "utf8");
 const cargoVersion = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+const cargoLicense = cargoToml.match(/^license\s*=\s*"([^"]+)"/m)?.[1];
+const cargoHomepage = cargoToml.match(/^homepage\s*=\s*"([^"]+)"/m)?.[1];
+const cargoRepository = cargoToml.match(/^repository\s*=\s*"([^"]+)"/m)?.[1];
 
 if (!cargoVersion) {
   throw new Error("Cargo.toml is missing a package version.");
 }
 if (packageJson.version !== cargoVersion) {
   throw new Error(`package.json version ${packageJson.version} does not match Cargo.toml version ${cargoVersion}.`);
+}
+if (packageJson.license !== cargoLicense) {
+  throw new Error(`package.json license ${packageJson.license} does not match Cargo.toml license ${cargoLicense}.`);
+}
+if (packageJson.homepage !== `${cargoHomepage}#readme`) {
+  throw new Error(`package.json homepage ${packageJson.homepage} does not match Cargo.toml homepage ${cargoHomepage}.`);
+}
+if (normalizeRepositoryUrl(packageJson.repository?.url) !== normalizeRepositoryUrl(cargoRepository)) {
+  throw new Error(`package.json repository ${packageJson.repository?.url} does not match Cargo.toml repository ${cargoRepository}.`);
 }
 
 const required = [
@@ -87,3 +99,11 @@ for (const path of forbidden) {
 }
 
 console.log(`Package check passed: ${pack.name}@${pack.version} (${files.length} files).`);
+
+function normalizeRepositoryUrl(value) {
+  return String(value ?? "")
+    .replace(/^git\+/, "")
+    .replace(/\.git$/, "")
+    .replace(/#readme$/, "")
+    .replace(/\/$/, "");
+}
