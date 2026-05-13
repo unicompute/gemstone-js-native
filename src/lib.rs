@@ -185,9 +185,10 @@ impl Gci {
             .into_iter()
             .map(parse_oop)
             .collect::<Result<Vec<_>>>()?;
+        let argc = perform_arg_count(args.len())?;
         unsafe {
             self.lib
-                .gci_perform(receiver, &selector, args.as_ptr(), args.len() as i32)
+                .gci_perform(receiver, &selector, args.as_ptr(), argc)
                 .map(oop_string)
                 .map_err(to_napi_error)
         }
@@ -537,6 +538,11 @@ fn validate_finite_float(value: f64) -> Result<f64> {
     Ok(value)
 }
 
+fn perform_arg_count(count: usize) -> Result<i32> {
+    i32::try_from(count)
+        .map_err(|_| Error::from_reason("perform argument count exceeds i32 range."))
+}
+
 fn to_napi_error(error: impl std::fmt::Display) -> Error {
     Error::from_reason(error.to_string())
 }
@@ -603,6 +609,14 @@ mod tests {
         assert!(validate_finite_float(f64::NAN).is_err());
         assert!(validate_finite_float(f64::INFINITY).is_err());
         assert!(validate_finite_float(f64::NEG_INFINITY).is_err());
+    }
+
+    #[test]
+    fn perform_arg_count_validation_rejects_i32_overflow() {
+        assert_eq!(perform_arg_count(0).unwrap(), 0);
+        assert_eq!(perform_arg_count(2).unwrap(), 2);
+        assert_eq!(perform_arg_count(i32::MAX as usize).unwrap(), i32::MAX);
+        assert!(perform_arg_count(i32::MAX as usize + 1).is_err());
     }
 
     #[test]
