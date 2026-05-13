@@ -85,6 +85,7 @@ const required = [
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
+  "scripts/check-public-surface.mjs",
   "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
   "scripts/write-checksums.mjs",
@@ -107,6 +108,7 @@ const requiredFileEntries = [
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
+  "scripts/check-public-surface.mjs",
   "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
   "scripts/write-checksums.mjs",
@@ -120,9 +122,10 @@ const requiredScripts = {
   "test:node": "node scripts/smoke-node.mjs",
   "pack:check": "node scripts/check-package.mjs",
   "loader:check": "node scripts/patch-loader.mjs --check",
+  "public-surface:check": "node scripts/check-public-surface.mjs",
   "session-thread:check": "node scripts/check-session-thread-spike.mjs",
   "checksum:check": "node scripts/check-checksums.mjs",
-  verify: "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run test:node && npm run loader:check && npm run pack:check",
+  verify: "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run public-surface:check && npm run test:node && npm run loader:check && npm run pack:check",
 };
 
 for (const path of required) {
@@ -169,6 +172,7 @@ for (const snippet of ["category: string", "context: string", "exceptionObj: str
   }
 }
 const nodeSmoke = readFileSync("scripts/smoke-node.mjs", "utf8");
+const publicSurfaceCheck = readFileSync("scripts/check-public-surface.mjs", "utf8");
 const sessionThreadCheck = readFileSync("scripts/check-session-thread-spike.mjs", "utf8");
 const checksumCheck = readFileSync("scripts/check-checksums.mjs", "utf8");
 const checksumWriter = readFileSync("scripts/write-checksums.mjs", "utf8");
@@ -177,6 +181,12 @@ if (!nodeSmoke.includes("assertMappedGciError")) {
 }
 if (!nodeSmoke.includes("assertPatchLoaderPatchesGeneratedFixture")) {
   throw new Error("scripts/smoke-node.mjs must assert patch-loader against a generated loader fixture.");
+}
+if (!publicSurfaceCheck.includes("publicExports") || !publicSurfaceCheck.includes("gciMethods")) {
+  throw new Error("scripts/check-public-surface.mjs must assert publicExports and gciMethods.");
+}
+if (!publicSurfaceCheck.includes("GemStoneNativeError") || !publicSurfaceCheck.includes("class Gci extends NativeGci")) {
+  throw new Error("scripts/check-public-surface.mjs must assert mapped loader and declaration shape.");
 }
 if (!sessionThreadCheck.includes("ExperimentalGciThreadWorker")) {
   throw new Error("scripts/check-session-thread-spike.mjs must assert ExperimentalGciThreadWorker coverage.");

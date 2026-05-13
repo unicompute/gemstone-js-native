@@ -28,6 +28,9 @@ publishing.
 `npm run verify`, pack, and upload the expected release artifacts. The local
 `npm run checksum:check` script also verifies that the checksum writer produces
 stable sorted output and fails when no artifact suffixes match.
+`npm run public-surface:check` verifies that the generated loader, TypeScript
+declarations, loader patcher, and smoke checks agree on exported helpers and
+`Gci` methods before publishing.
 
 ## Artifact Inspection
 
