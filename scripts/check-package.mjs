@@ -99,6 +99,13 @@ const requiredFileEntries = [
   "scripts/smoke-node.mjs",
   "*.node",
 ];
+const requiredScripts = {
+  build: "napi build --platform --release",
+  "build:debug": "napi build --platform",
+  test: "cargo test",
+  "test:node": "node scripts/smoke-node.mjs",
+  "pack:check": "node scripts/check-package.mjs",
+};
 
 for (const path of required) {
   if (!fileSet.has(path)) {
@@ -111,6 +118,14 @@ if (!Array.isArray(packageJson.files)) {
 for (const entry of requiredFileEntries) {
   if (!packageJson.files.includes(entry)) {
     throw new Error(`package.json files is missing required entry: ${entry}`);
+  }
+}
+if (typeof packageJson.scripts !== "object" || packageJson.scripts === null || Array.isArray(packageJson.scripts)) {
+  throw new Error("package.json scripts must be an object.");
+}
+for (const [name, command] of Object.entries(requiredScripts)) {
+  if (packageJson.scripts[name] !== command) {
+    throw new Error(`package.json script ${name} must be ${JSON.stringify(command)}.`);
   }
 }
 
