@@ -9,8 +9,8 @@ crate from [`gemstone-rs`](https://github.com/unicompute/gemstone-rs).
 String and OOP values cross the Node boundary in decimal wire form so JavaScript
 does not lose precision on 64-bit object pointers.
 The addon validates unsigned decimal OOP strings, finite float inputs, perform
-argument counts, byte ranges, and session ids before dispatching into GCI so bad
-JavaScript inputs fail at the boundary.
+argument counts, byte ranges and conversions, and session ids before dispatching
+into GCI so bad JavaScript inputs fail at the boundary.
 
 ## Local Checks
 
@@ -20,8 +20,8 @@ cargo test
 ```
 
 The Rust tests cover wire-format parsing and immediate OOP helpers in addition
-to boundary validation for perform argument counts, fetch ranges, finite floats,
-and session ids.
+to boundary validation for perform argument counts, fetch ranges and count
+conversion, finite floats, and session ids.
 
 Building the Node addon itself uses napi-rs:
 

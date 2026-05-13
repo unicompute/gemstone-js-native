@@ -514,7 +514,7 @@ fn fetch_count_to_usize(count: i64) -> Result<usize> {
     if count < 0 {
         return Err(Error::from_reason("fetchBytes count must be non-negative."));
     }
-    Ok(count as usize)
+    usize::try_from(count).map_err(|_| Error::from_reason("fetchBytes count exceeds usize range."))
 }
 
 fn validate_fetch_start(start: i64) -> Result<i64> {
@@ -586,6 +586,9 @@ mod tests {
         assert_eq!(fetch_count_to_usize(0).unwrap(), 0);
         assert_eq!(fetch_count_to_usize(16).unwrap(), 16);
         assert!(fetch_count_to_usize(-1).is_err());
+        if usize::BITS < i64::BITS {
+            assert!(fetch_count_to_usize(i64::MAX).is_err());
+        }
     }
 
     #[test]
