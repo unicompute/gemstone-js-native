@@ -3,10 +3,27 @@ import { fileURLToPath } from "node:url";
 
 const loaderPath = fileURLToPath(new URL("../index.js", import.meta.url));
 const source = readFileSync(loaderPath, "utf8");
+const checkOnly = process.argv.includes("--check");
+
+const requiredPatchedSnippets = [
+  "const { Gci: NativeGci",
+  "const mappedGciMethods = [",
+  "class Gci extends NativeGci",
+  "function mapGciError(error, gci, operation)",
+  "mapped.code = 'GEMSTONE_GCI_ERROR'",
+  "mapped.operation = operation",
+  "mapped.gciNumber = info.number",
+  "module.exports.Gci = Gci",
+];
 
 if (source.includes("GEMSTONE_GCI_ERROR")) {
+  assertPatchedLoader(source);
   console.log("index.js already has GemStone GCI error mapping.");
   process.exit(0);
+}
+
+if (checkOnly) {
+  throw new Error("index.js is missing GemStone GCI error mapping. Run node scripts/patch-loader.mjs after build.");
 }
 
 const generatedExports = `const { Gci, smallintToOop, oopToSmallint, isSmallintOop, boolToOop, charToOopString, oopToCharString } = nativeBinding
@@ -122,5 +139,15 @@ if (!source.includes(generatedExports)) {
   throw new Error("Cannot patch index.js: generated export block was not found.");
 }
 
-writeFileSync(loaderPath, source.replace(generatedExports, mappedExports));
+const patched = source.replace(generatedExports, mappedExports);
+assertPatchedLoader(patched);
+writeFileSync(loaderPath, patched);
 console.log("Patched index.js with GemStone GCI error mapping.");
+
+function assertPatchedLoader(value) {
+  for (const snippet of requiredPatchedSnippets) {
+    if (!value.includes(snippet)) {
+      throw new Error(`index.js GemStone GCI error mapping is incomplete: missing ${JSON.stringify(snippet)}.`);
+    }
+  }
+}

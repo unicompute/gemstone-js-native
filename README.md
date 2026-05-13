@@ -39,6 +39,8 @@ npm run pack:check
 
 The build scripts run `scripts/patch-loader.mjs` after napi-rs regenerates
 `index.js` so the packed loader keeps the standardized `Gci` error mapping.
+`npm run loader:check` verifies the patched loader shape without modifying it,
+and `pack:check` runs that verification before inspecting the tarball.
 `test:node` loads the generated addon through `index.js`, checks exported OOP
 helpers and `Gci` prototype methods, and covers boolean, character,
 SmallInteger, and invalid-input cases that do not need a live GemStone login.

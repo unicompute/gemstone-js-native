@@ -38,7 +38,8 @@
     "test": "cargo test",
     "test:live": "node scripts/live-smoke-node.mjs",
     "test:node": "node scripts/smoke-node.mjs",
-    "pack:check": "node scripts/check-package.mjs"
+    "pack:check": "node scripts/check-package.mjs",
+    "loader:check": "node scripts/patch-loader.mjs --check"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0"

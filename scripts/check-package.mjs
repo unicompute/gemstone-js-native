@@ -110,6 +110,7 @@ const requiredScripts = {
   "test:live": "node scripts/live-smoke-node.mjs",
   "test:node": "node scripts/smoke-node.mjs",
   "pack:check": "node scripts/check-package.mjs",
+  "loader:check": "node scripts/patch-loader.mjs --check",
 };
 
 for (const path of required) {
@@ -136,8 +137,13 @@ for (const [name, command] of Object.entries(requiredScripts)) {
 
 const declarations = readFileSync("index.d.ts", "utf8");
 const loader = readFileSync("index.js", "utf8");
-if (!loader.includes("GEMSTONE_GCI_ERROR")) {
-  throw new Error("index.js is missing GemStone GCI error mapping. Run node scripts/patch-loader.mjs after build.");
+try {
+  execFileSync(process.execPath, ["scripts/patch-loader.mjs", "--check"], { stdio: "pipe" });
+} catch (error) {
+  const stderr = error && typeof error === "object" && "stderr" in error
+    ? String(error.stderr ?? "")
+    : "";
+  throw new Error(`index.js loader patch check failed.${stderr ? ` ${stderr.trim()}` : ""}`);
 }
 if (!declarations.includes("interface GemStoneNativeError")) {
   throw new Error("index.d.ts is missing GemStoneNativeError declaration.");
