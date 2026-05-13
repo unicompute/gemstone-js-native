@@ -84,6 +84,7 @@ const required = [
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
+  "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
 ];
 
@@ -103,6 +104,7 @@ const requiredFileEntries = [
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
+  "scripts/check-session-thread-spike.mjs",
   "scripts/smoke-node.mjs",
   "*.node",
 ];
@@ -114,7 +116,8 @@ const requiredScripts = {
   "test:node": "node scripts/smoke-node.mjs",
   "pack:check": "node scripts/check-package.mjs",
   "loader:check": "node scripts/patch-loader.mjs --check",
-  verify: "cargo test && cargo test --features session-thread-spike && npm run test:node && npm run loader:check && npm run pack:check",
+  "session-thread:check": "node scripts/check-session-thread-spike.mjs",
+  verify: "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run test:node && npm run loader:check && npm run pack:check",
 };
 
 for (const path of required) {
@@ -161,11 +164,18 @@ for (const snippet of ["category: string", "context: string", "exceptionObj: str
   }
 }
 const nodeSmoke = readFileSync("scripts/smoke-node.mjs", "utf8");
+const sessionThreadCheck = readFileSync("scripts/check-session-thread-spike.mjs", "utf8");
 if (!nodeSmoke.includes("assertMappedGciError")) {
   throw new Error("scripts/smoke-node.mjs must assert mapped Gci errors.");
 }
 if (!nodeSmoke.includes("assertPatchLoaderPatchesGeneratedFixture")) {
   throw new Error("scripts/smoke-node.mjs must assert patch-loader against a generated loader fixture.");
+}
+if (!sessionThreadCheck.includes("ExperimentalGciThreadWorker")) {
+  throw new Error("scripts/check-session-thread-spike.mjs must assert ExperimentalGciThreadWorker coverage.");
+}
+if (!sessionThreadCheck.includes("GciThreadCommand")) {
+  throw new Error("scripts/check-session-thread-spike.mjs must assert GciThreadCommand coverage.");
 }
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {

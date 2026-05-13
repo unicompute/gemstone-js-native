@@ -80,6 +80,10 @@ the feature test uses synthetic auth/lifecycle, readback, execution, perform,
 error, session id, float, dictionary, transaction, and allocation data to verify
 the queue and reply path from a different OS thread without requiring a live
 Stone or a loadable GCI library.
+`npm run session-thread:check` statically guards this spike by checking that
+each queued operation has an `ExperimentalGciThreadWorker` wrapper method, a
+`GciThreadCommand` variant, a dispatch arm, a state implementation, and matching
+docs/package metadata.
 
 This deliberately avoids changing the JavaScript API. It is only a native
 architecture slice that validates the queue/thread/drop shape before moving

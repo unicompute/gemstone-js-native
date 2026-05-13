@@ -25,6 +25,7 @@ Rust-only checks:
 cargo fmt --check
 cargo test
 cargo test --features session-thread-spike
+npm run session-thread:check
 ```
 
 The Rust tests cover wire-format parsing and immediate OOP helpers in addition
@@ -37,6 +38,9 @@ transaction status/reset calls, session id get/set calls, float conversion,
 dictionary lookup/update calls, plus string/symbol/object allocation calls. The
 `fetchBytes` wrapper keeps the validated GCI byte count separate from the
 JavaScript buffer length to avoid unchecked narrowing at the FFI call.
+`npm run session-thread:check` statically verifies that the feature-gated
+`ExperimentalGciThreadWorker` command enum, public wrapper methods, dispatch
+arms, state implementations, docs, and package script contract stay in sync.
 
 Building the Node addon itself uses napi-rs:
 
@@ -60,11 +64,12 @@ real Stone.
 `pack:check` validates the publishable npm tarball, checks that `index.js` and
 `index.d.ts` expose the same public helpers, verifies the npm and Cargo versions
 and package metadata match, verifies the npm entrypoint/export map, verifies
-the npm script contract, verifies `Gci` method declarations, and fails if the
-generated platform `.node` binary is missing, duplicated, misnamed, or not
-referenced by the generated loader. It also checks the CI and prebuild workflow
-snippets that produce and upload release artifacts, and guards the release docs
-for artifact checksum, registry signature, and provenance verification steps.
+the npm script contract, verifies `Gci` method declarations, checks the
+session-thread spike coverage guard, and fails if the generated platform
+`.node` binary is missing, duplicated, misnamed, or not referenced by the
+generated loader. It also checks the CI and prebuild workflow snippets that
+produce and upload release artifacts, and guards the release docs for artifact
+checksum, registry signature, and provenance verification steps.
 
 Release notes, npm provenance guidance, and the current platform matrix live in
 `docs/releasing.md`. Rust-side error mapping and dedicated session-threading
