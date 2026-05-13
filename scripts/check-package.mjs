@@ -139,6 +139,12 @@ const loader = readFileSync("index.js", "utf8");
 if (!loader.includes("GEMSTONE_GCI_ERROR")) {
   throw new Error("index.js is missing GemStone GCI error mapping. Run node scripts/patch-loader.mjs after build.");
 }
+if (!declarations.includes("interface GemStoneNativeError")) {
+  throw new Error("index.d.ts is missing GemStoneNativeError declaration.");
+}
+if (!readFileSync("scripts/smoke-node.mjs", "utf8").includes("assertMappedGciError")) {
+  throw new Error("scripts/smoke-node.mjs must assert mapped Gci errors.");
+}
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {
     throw new Error(`index.d.ts is missing public export: ${name}`);

@@ -41,6 +41,11 @@ assertThrows(() => native.oopToSmallint("+20"), "oopToSmallint should reject sig
 assertThrows(() => native.oopToSmallint("-20"), "oopToSmallint should reject negative OOP strings.");
 assertThrows(() => native.charToOopString(""), "charToOopString should reject empty strings.");
 assertThrows(() => native.charToOopString("AB"), "charToOopString should reject multi-character strings.");
+assertMappedGciError(
+  () => new native.Gci("/definitely/missing/libgcirpc.dylib"),
+  "constructor",
+  "Gci constructor should decorate native loading errors.",
+);
 
 if (native.oopToCharString("20") !== null) {
   throw new Error("oopToCharString should return null for non-Character OOPs.");
@@ -53,6 +58,24 @@ function assertThrows(fn, message) {
     fn();
   } catch {
     return;
+  }
+  throw new Error(message);
+}
+
+function assertMappedGciError(fn, operation, message) {
+  try {
+    fn();
+  } catch (error) {
+    if (
+      error
+      && typeof error === "object"
+      && error.code === "GEMSTONE_GCI_ERROR"
+      && error.operation === operation
+      && String(error.message).includes(`${operation} failed`)
+    ) {
+      return;
+    }
+    throw new Error(`${message} Got ${String(error?.message ?? error)}.`);
   }
   throw new Error(message);
 }
