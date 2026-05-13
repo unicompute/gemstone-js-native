@@ -196,9 +196,11 @@ assertSnippets(
     "npm run build",
     "npm run verify",
     "npm pack --json",
+    "node scripts/write-checksums.mjs .node .tgz",
     "actions/upload-artifact@v4",
     "*.node",
     "*.tgz",
+    "SHA256SUMS.txt",
   ],
 );
 assertSnippets(
@@ -212,8 +214,10 @@ assertSnippets(
     "npm run build",
     "npm run verify",
     "npm pack --json",
+    "node scripts/write-checksums.mjs .tgz",
     "actions/upload-artifact@v4",
     "*.tgz",
+    "SHA256SUMS.txt",
   ],
 );
 assertSnippets(
@@ -225,6 +229,7 @@ assertSnippets(
     "dist.integrity",
     "dist.signatures",
     "shasum -a 256",
+    "SHA256SUMS.txt",
   ],
 );
 

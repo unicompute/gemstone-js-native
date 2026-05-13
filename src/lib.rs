@@ -445,9 +445,28 @@ impl ExperimentalGciThreadWorker {
         self.request_string(GciThreadCommand::LibraryPath)
     }
 
+    pub fn fetch_size(&self, oop: RawOop) -> Result<i64> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(GciThreadCommand::FetchSize(oop, reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
     #[cfg(test)]
-    fn start_for_path(path: PathBuf) -> Result<Self> {
-        Self::spawn(GciThreadState::PathOnly(path))
+    fn start_for_path_with_sizes(
+        path: PathBuf,
+        sizes: impl IntoIterator<Item = (RawOop, i64)>,
+    ) -> Result<Self> {
+        Self::spawn(GciThreadState::PathOnly {
+            path,
+            sizes: sizes.into_iter().collect(),
+        })
     }
 
     #[cfg(test)]
@@ -464,6 +483,9 @@ impl ExperimentalGciThreadWorker {
                     match command {
                         GciThreadCommand::LibraryPath(reply) => {
                             let _ = reply.send(state.library_path());
+                        }
+                        GciThreadCommand::FetchSize(oop, reply) => {
+                            let _ = reply.send(state.fetch_size(oop));
                         }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
@@ -512,7 +534,10 @@ impl Drop for ExperimentalGciThreadWorker {
 enum GciThreadState {
     Live(GciLibrary),
     #[cfg(test)]
-    PathOnly(PathBuf),
+    PathOnly {
+        path: PathBuf,
+        sizes: std::collections::BTreeMap<RawOop, i64>,
+    },
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -521,7 +546,20 @@ impl GciThreadState {
         match self {
             Self::Live(lib) => lib.path().display().to_string(),
             #[cfg(test)]
-            Self::PathOnly(path) => path.display().to_string(),
+            Self::PathOnly { path, .. } => path.display().to_string(),
+        }
+    }
+
+    fn fetch_size(&self, oop: RawOop) -> std::result::Result<i64, String> {
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_fetch_size(oop).map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { sizes, .. } => sizes
+                .get(&oop)
+                .copied()
+                .ok_or_else(|| format!("No synthetic fetchSize result for OOP {oop}.")),
         }
     }
 }
@@ -529,6 +567,10 @@ impl GciThreadState {
 #[cfg(feature = "session-thread-spike")]
 enum GciThreadCommand {
     LibraryPath(std::sync::mpsc::Sender<String>),
+    FetchSize(
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<i64, String>>,
+    ),
     ThreadId(std::sync::mpsc::Sender<String>),
     Shutdown,
 }
@@ -809,9 +851,14 @@ mod tests {
     #[test]
     fn experimental_worker_routes_read_only_calls_on_worker_thread() {
         let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
-        let worker = ExperimentalGciThreadWorker::start_for_path(path.clone()).unwrap();
+        let worker = ExperimentalGciThreadWorker::start_for_path_with_sizes(
+            path.clone(),
+            [(OOP_NIL, 0), (i64_to_smallint(42), 0)],
+        )
+        .unwrap();
 
         assert_eq!(worker.library_path().unwrap(), path.display().to_string());
+        assert_eq!(worker.fetch_size(OOP_NIL).unwrap(), 0);
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())

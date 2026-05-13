@@ -18,22 +18,25 @@ npm install
 npm run build
 npm run verify
 npm pack --json
+node scripts/write-checksums.mjs .node .tgz
 ```
 
-The workflow uploads the `.node` file and npm tarball as GitHub Actions
-artifacts so the package contents can be inspected before publishing.
+The workflow uploads the `.node` file, npm tarball, and `SHA256SUMS.txt` as
+GitHub Actions artifacts so the package contents can be inspected before
+publishing.
 `npm run pack:check` verifies that both CI workflows still build, run
 `npm run verify`, pack, and upload the expected release artifacts.
 
 ## Artifact Inspection
 
-Before `npm publish`, compare at least one CI tarball with the local dry-run
-package:
+Before `npm publish`, compare at least one CI tarball with a local package:
 
 ```sh
-npm pack --dry-run --json
+npm pack --json
+node scripts/write-checksums.mjs .node .tgz
 tar -tzf gemstone-js-native-*.tgz
 shasum -a 256 gemstone-js-native-*.tgz index.*.node
+shasum -a 256 -c SHA256SUMS.txt
 ```
 
 Check that the tarball contains `index.js`, `index.d.ts`, `README.md`,
