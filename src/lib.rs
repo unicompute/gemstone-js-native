@@ -458,14 +458,29 @@ impl ExperimentalGciThreadWorker {
             .map_err(Error::from_reason)
     }
 
+    pub fn fetch_class(&self, oop: RawOop) -> Result<RawOop> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(GciThreadCommand::FetchClass(oop, reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
     #[cfg(test)]
-    fn start_for_path_with_sizes(
+    fn start_for_path_with_readbacks(
         path: PathBuf,
         sizes: impl IntoIterator<Item = (RawOop, i64)>,
+        classes: impl IntoIterator<Item = (RawOop, RawOop)>,
     ) -> Result<Self> {
         Self::spawn(GciThreadState::PathOnly {
             path,
             sizes: sizes.into_iter().collect(),
+            classes: classes.into_iter().collect(),
         })
     }
 
@@ -486,6 +501,9 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::FetchSize(oop, reply) => {
                             let _ = reply.send(state.fetch_size(oop));
+                        }
+                        GciThreadCommand::FetchClass(oop, reply) => {
+                            let _ = reply.send(state.fetch_class(oop));
                         }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
@@ -537,6 +555,7 @@ enum GciThreadState {
     PathOnly {
         path: PathBuf,
         sizes: std::collections::BTreeMap<RawOop, i64>,
+        classes: std::collections::BTreeMap<RawOop, RawOop>,
     },
 }
 
@@ -562,6 +581,19 @@ impl GciThreadState {
                 .ok_or_else(|| format!("No synthetic fetchSize result for OOP {oop}.")),
         }
     }
+
+    fn fetch_class(&self, oop: RawOop) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_fetch_class(oop).map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { classes, .. } => classes
+                .get(&oop)
+                .copied()
+                .ok_or_else(|| format!("No synthetic fetchClass result for OOP {oop}.")),
+        }
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -570,6 +602,10 @@ enum GciThreadCommand {
     FetchSize(
         RawOop,
         std::sync::mpsc::Sender<std::result::Result<i64, String>>,
+    ),
+    FetchClass(
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
     ThreadId(std::sync::mpsc::Sender<String>),
     Shutdown,
@@ -851,14 +887,17 @@ mod tests {
     #[test]
     fn experimental_worker_routes_read_only_calls_on_worker_thread() {
         let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
-        let worker = ExperimentalGciThreadWorker::start_for_path_with_sizes(
+        let object_class = 123_456;
+        let worker = ExperimentalGciThreadWorker::start_for_path_with_readbacks(
             path.clone(),
             [(OOP_NIL, 0), (i64_to_smallint(42), 0)],
+            [(OOP_NIL, object_class)],
         )
         .unwrap();
 
         assert_eq!(worker.library_path().unwrap(), path.display().to_string());
         assert_eq!(worker.fetch_size(OOP_NIL).unwrap(), 0);
+        assert_eq!(worker.fetch_class(OOP_NIL).unwrap(), object_class);
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())
