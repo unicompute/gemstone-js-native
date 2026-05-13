@@ -11,6 +11,10 @@ for (const suffix of suffixes) {
     fail(`Checksum suffixes must start with "." and include an extension name: ${JSON.stringify(suffix)}`);
   }
 }
+const uniqueSuffixes = new Set(suffixes);
+if (uniqueSuffixes.size !== suffixes.length) {
+  fail("Checksum suffix filters must be unique.");
+}
 
 const files = readdirSync(".")
   .filter((file) => suffixes.some((suffix) => file.endsWith(suffix)))

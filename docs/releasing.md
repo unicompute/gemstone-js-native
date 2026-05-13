@@ -32,7 +32,7 @@ checksum writer produces stable sorted output, that the checksum verifier
 accepts matching artifacts and rejects mismatches, empty or malformed
 manifests, missing files, pathful entries, duplicate entries, and that writing
 checksums fails when no artifact suffixes match or when suffix filters are
-malformed.
+malformed or duplicated.
 `npm run public-surface:check` verifies that the generated loader, TypeScript
 declarations, loader patcher, and smoke checks agree on exported helpers and
 `Gci` methods before publishing.

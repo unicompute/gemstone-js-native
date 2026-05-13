@@ -38,6 +38,7 @@ try {
   assertMismatchFails();
   assertVerifierInputFailures();
   assertInvalidSuffixFails();
+  assertDuplicateSuffixFails();
   assertNoMatchFails();
   process.stdout.write("Checksum helper check passed.\n");
 } finally {
@@ -110,6 +111,19 @@ function assertInvalidSuffixFails() {
     }
     throw new Error(`write-checksums.mjs should fail for invalid suffix ${JSON.stringify(suffix)}.`);
   }
+}
+
+function assertDuplicateSuffixFails() {
+  try {
+    execFileSync(process.execPath, [script, ".tgz", ".tgz"], {
+      cwd: workspace,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch {
+    return;
+  }
+  throw new Error("write-checksums.mjs should fail when suffix filters are duplicated.");
 }
 
 function sha256(value) {
