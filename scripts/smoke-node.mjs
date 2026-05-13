@@ -18,6 +18,9 @@ for (const name of gciMethods) {
 if (native.boolToOop(true) !== "268") {
   throw new Error("boolToOop(true) returned an unexpected OOP.");
 }
+if (native.boolToOop(false) !== "12") {
+  throw new Error("boolToOop(false) returned an unexpected OOP.");
+}
 
 const smallint = native.smallintToOop(42);
 if (!native.isSmallintOop(smallint) || native.oopToSmallint(smallint) !== 42) {
@@ -27,6 +30,10 @@ if (!native.isSmallintOop(smallint) || native.oopToSmallint(smallint) !== 42) {
 const char = native.charToOopString("A");
 if (native.oopToCharString(char) !== "A") {
   throw new Error("Character helpers failed to round-trip A.");
+}
+const unicodeChar = native.charToOopString("λ");
+if (native.oopToCharString(unicodeChar) !== "λ") {
+  throw new Error("Character helpers failed to round-trip λ.");
 }
 
 assertThrows(() => native.oopToSmallint("20"), "oopToSmallint should reject non-SmallInteger OOPs.");

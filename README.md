@@ -35,8 +35,8 @@ npm run pack:check
 ```
 
 `test:node` loads the generated addon through `index.js`, checks exported OOP
-helpers and `Gci` prototype methods, and covers invalid-input cases that do not
-need a live GemStone login.
+helpers and `Gci` prototype methods, and covers boolean, character,
+SmallInteger, and invalid-input cases that do not need a live GemStone login.
 `pack:check` validates the publishable npm tarball, checks that `index.js` and
 `index.d.ts` expose the same public helpers, verifies the npm and Cargo versions
 and package metadata match, verifies the npm entrypoint/export map, verifies
