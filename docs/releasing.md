@@ -31,6 +31,8 @@ stable sorted output and fails when no artifact suffixes match.
 `npm run public-surface:check` verifies that the generated loader, TypeScript
 declarations, loader patcher, and smoke checks agree on exported helpers and
 `Gci` methods before publishing.
+`npm run verify` also runs `npm run fmt:check`, which wraps `cargo fmt --check`,
+so local release verification catches Rust formatting drift before CI.
 
 ## Artifact Inspection
 

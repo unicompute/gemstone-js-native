@@ -117,6 +117,7 @@ const requiredFileEntries = [
 const requiredScripts = {
   build: "napi build --platform --release && node scripts/patch-loader.mjs",
   "build:debug": "napi build --platform && node scripts/patch-loader.mjs",
+  "fmt:check": "cargo fmt --check",
   test: "cargo test",
   "test:live": "node scripts/live-smoke-node.mjs",
   "test:node": "node scripts/smoke-node.mjs",
@@ -125,7 +126,7 @@ const requiredScripts = {
   "public-surface:check": "node scripts/check-public-surface.mjs",
   "session-thread:check": "node scripts/check-session-thread-spike.mjs",
   "checksum:check": "node scripts/check-checksums.mjs",
-  verify: "cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run public-surface:check && npm run test:node && npm run loader:check && npm run pack:check",
+  verify: "npm run fmt:check && cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run public-surface:check && npm run test:node && npm run loader:check && npm run pack:check",
 };
 
 for (const path of required) {

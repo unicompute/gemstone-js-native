@@ -23,6 +23,7 @@ Rust-only checks:
 
 ```sh
 cargo fmt --check
+npm run fmt:check
 cargo test
 cargo test --features session-thread-spike
 npm run session-thread:check
@@ -40,6 +41,8 @@ transaction status/reset calls, session id get/set calls, float conversion,
 dictionary lookup/update calls, plus string/symbol/object allocation calls. The
 `fetchBytes` wrapper keeps the validated GCI byte count separate from the
 JavaScript buffer length to avoid unchecked narrowing at the FFI call.
+`npm run fmt:check` is the npm-facing Rust formatting guard used by
+`npm run verify`, matching the CI `cargo fmt --check` step.
 `npm run session-thread:check` statically verifies that the feature-gated
 `ExperimentalGciThreadWorker` command enum, public wrapper methods, dispatch
 arms, state implementations, docs, and package script contract stay in sync.
