@@ -558,6 +558,15 @@ impl ExperimentalGciThreadWorker {
         self.request_bool(GciThreadCommand::InTransaction)
     }
 
+    pub fn flt_to_oop(&self, value: f64) -> Result<RawOop> {
+        let value = validate_finite_float(value)?;
+        self.request_raw(|reply| GciThreadCommand::FltToOop(value, reply))
+    }
+
+    pub fn oop_to_flt(&self, oop: RawOop) -> Result<f64> {
+        self.request_f64(|reply| GciThreadCommand::OopToFlt(oop, reply))
+    }
+
     pub fn new_string(&self, value: String) -> Result<RawOop> {
         self.request_raw(|reply| GciThreadCommand::NewString(value, reply))
     }
@@ -580,6 +589,8 @@ impl ExperimentalGciThreadWorker {
         sizes: impl IntoIterator<Item = (RawOop, i64)>,
         classes: impl IntoIterator<Item = (RawOop, RawOop)>,
         bytes: impl IntoIterator<Item = (RawOop, Vec<u8>)>,
+        float_oops: impl IntoIterator<Item = (f64, RawOop)>,
+        oop_floats: impl IntoIterator<Item = (RawOop, f64)>,
         executions: impl IntoIterator<Item = ((String, RawOop), RawOop)>,
         performs: impl IntoIterator<Item = ((RawOop, String, Vec<RawOop>), RawOop)>,
         err_info: Option<GciErrorInfo>,
@@ -589,6 +600,11 @@ impl ExperimentalGciThreadWorker {
             sizes: sizes.into_iter().collect(),
             classes: classes.into_iter().collect(),
             bytes: bytes.into_iter().collect(),
+            float_oops: float_oops
+                .into_iter()
+                .map(|(value, oop)| (worker_float_key(value), oop))
+                .collect(),
+            oop_floats: oop_floats.into_iter().collect(),
             executions: executions.into_iter().collect(),
             performs: performs.into_iter().collect(),
             err_info,
@@ -649,6 +665,12 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::InTransaction(reply) => {
                             let _ = reply.send(state.in_transaction());
+                        }
+                        GciThreadCommand::FltToOop(value, reply) => {
+                            let _ = reply.send(state.flt_to_oop(value));
+                        }
+                        GciThreadCommand::OopToFlt(oop, reply) => {
+                            let _ = reply.send(state.oop_to_flt(oop));
                         }
                         GciThreadCommand::NewString(value, reply) => {
                             let _ = reply.send(state.new_string(value));
@@ -747,6 +769,24 @@ impl ExperimentalGciThreadWorker {
             })?
             .map_err(Error::from_reason)
     }
+
+    fn request_f64(
+        &self,
+        build_command: impl FnOnce(
+            std::sync::mpsc::Sender<std::result::Result<f64, String>>,
+        ) -> GciThreadCommand,
+    ) -> Result<f64> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(build_command(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -768,6 +808,8 @@ enum GciThreadState {
         sizes: std::collections::BTreeMap<RawOop, i64>,
         classes: std::collections::BTreeMap<RawOop, RawOop>,
         bytes: std::collections::BTreeMap<RawOop, Vec<u8>>,
+        float_oops: std::collections::BTreeMap<u64, RawOop>,
+        oop_floats: std::collections::BTreeMap<RawOop, f64>,
         executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
         performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
         err_info: Option<GciErrorInfo>,
@@ -1011,6 +1053,43 @@ impl GciThreadState {
         }
     }
 
+    fn flt_to_oop(&self, value: f64) -> std::result::Result<RawOop, String> {
+        if !value.is_finite() {
+            return Err("Float value must be finite.".to_string());
+        }
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_flt_to_oop(value).map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { float_oops, .. } => float_oops
+                .get(&worker_float_key(value))
+                .copied()
+                .ok_or_else(|| format!("No synthetic fltToOop result for value {value}.")),
+        }
+    }
+
+    fn oop_to_flt(&self, oop: RawOop) -> std::result::Result<f64, String> {
+        match self {
+            Self::Live(lib) => {
+                let mut value = 0.0_f64;
+                let ok = unsafe {
+                    lib.gci_oop_to_flt(oop, &mut value)
+                        .map_err(|error| error.to_string())?
+                };
+                if ok == 0 {
+                    return Err("OOP cannot be converted to Float.".to_string());
+                }
+                Ok(value)
+            }
+            #[cfg(test)]
+            Self::PathOnly { oop_floats, .. } => oop_floats
+                .get(&oop)
+                .copied()
+                .ok_or_else(|| format!("No synthetic oopToFlt result for OOP {oop}.")),
+        }
+    }
+
     fn new_string(&self, value: String) -> std::result::Result<RawOop, String> {
         match self {
             Self::Live(lib) => {
@@ -1113,6 +1192,14 @@ enum GciThreadCommand {
     Abort(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
     NeedsCommit(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
     InTransaction(std::sync::mpsc::Sender<std::result::Result<bool, String>>),
+    FltToOop(
+        f64,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
+    OopToFlt(
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<f64, String>>,
+    ),
     NewString(
         String,
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
@@ -1163,6 +1250,11 @@ fn worker_fetch_read_to_len(read: i64, buffer_len: usize) -> std::result::Result
     let read = usize::try_from(read)
         .map_err(|_| "GciFetchBytes_ byte count exceeds usize range.".to_string())?;
     Ok(read.min(buffer_len))
+}
+
+#[cfg(feature = "session-thread-spike")]
+fn worker_float_key(value: f64) -> u64 {
+    value.to_bits()
 }
 
 #[napi(js_name = "smallintToOop")]
@@ -1444,6 +1536,7 @@ mod tests {
         let object_class = 123_456;
         let object = 789_000;
         let string_oop = 654_321;
+        let float_oop = 246_810;
         let synthetic_error = GciErrorInfo {
             number: 2406,
             fatal: false,
@@ -1459,6 +1552,8 @@ mod tests {
             [(OOP_NIL, 0), (i64_to_smallint(42), 0), (string_oop, 12)],
             [(OOP_NIL, object_class)],
             [(string_oop, b"hello worker".to_vec())],
+            [(3.5, float_oop)],
+            [(float_oop, 3.5)],
             [(("1 + 1".to_string(), OOP_NIL), i64_to_smallint(2))],
             [(
                 (
@@ -1506,6 +1601,10 @@ mod tests {
         assert!(worker.abort().unwrap());
         assert!(worker.needs_commit().unwrap());
         assert!(!worker.in_transaction().unwrap());
+        assert_eq!(worker.flt_to_oop(3.5).unwrap(), float_oop);
+        assert_eq!(worker.oop_to_flt(float_oop).unwrap(), 3.5);
+        assert!(worker.flt_to_oop(f64::NAN).is_err());
+        assert!(worker.oop_to_flt(OOP_NIL).is_err());
         assert_eq!(
             worker.new_string("worker string".to_string()).unwrap(),
             synthetic_name_oop(41_000, "worker string")

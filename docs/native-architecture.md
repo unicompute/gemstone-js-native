@@ -68,14 +68,15 @@ routes read-only `library_path()`, `fetch_size()`, `fetch_class()`, and
 also has queued
 `execute_str()`, `perform()`, `err()`, and export-set retain/release paths as
 the first session-bound call shapes, along with queued `commit()`, `abort()`,
-`needs_commit()`, `in_transaction()`, `new_string()`, `new_symbol()`,
-`new_oop()`, and `resolve_symbol()` calls. The live worker arm calls
+`needs_commit()`, `in_transaction()`, `flt_to_oop()`, `oop_to_flt()`,
+`new_string()`, `new_symbol()`, `new_oop()`, and `resolve_symbol()` calls. The
+live worker arm calls
 `GciFetchSize_`, `GciFetchClass_`, `GciFetchBytes_`, `GciExecuteStr_`,
-`GciPerform_`, `GciErr_`,
-transaction and allocation functions, and optional export-set symbols on the
-worker thread; the feature test uses synthetic readback, execution, perform,
-error, transaction, and allocation data to verify the queue and reply path from
-a different OS thread without requiring a live Stone or a loadable GCI library.
+`GciPerform_`, `GciErr_`, float conversion, transaction and allocation
+functions, and optional export-set symbols on the worker thread; the feature
+test uses synthetic readback, execution, perform, error, float, transaction,
+and allocation data to verify the queue and reply path from a different OS
+thread without requiring a live Stone or a loadable GCI library.
 
 This deliberately avoids changing the JavaScript API. It is only a native
 architecture slice that validates the queue/thread/drop shape before moving
