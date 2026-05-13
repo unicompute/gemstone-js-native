@@ -31,6 +31,7 @@
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
     "test": "cargo test",
+    "test:node": "node scripts/smoke-node.mjs",
     "pack:check": "node scripts/check-package.mjs"
   },
   "devDependencies": {

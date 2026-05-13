@@ -21,8 +21,10 @@ Building the Node addon itself uses napi-rs:
 ```sh
 npm install
 npm run build
+npm run test:node
 npm run pack:check
 ```
 
-`pack:check` validates the publishable npm tarball and fails if the generated
-platform `.node` binary is missing.
+`test:node` loads the generated addon through `index.js` and checks the exported
+OOP helpers. `pack:check` validates the publishable npm tarball and fails if the
+generated platform `.node` binary is missing.
