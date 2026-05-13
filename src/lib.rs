@@ -1,3 +1,5 @@
+#[cfg(feature = "session-thread-spike")]
+use gemstone_gci::OOP_ILLEGAL;
 use gemstone_gci::{
     char_from_oop, char_to_oop, i64_to_smallint, is_char, is_smallint, smallint_to_i64,
     GciErrSType, GciLibrary, RawOop, GCI_ENCRYPT_BUF_SIZE, OOP_FALSE, OOP_NIL, OOP_TRUE,
@@ -567,6 +569,40 @@ impl ExperimentalGciThreadWorker {
         self.request_f64(|reply| GciThreadCommand::OopToFlt(oop, reply))
     }
 
+    pub fn sym_dict_at(&self, dict: RawOop, key: String) -> Result<SymDictLookup> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(GciThreadCommand::SymDictAt(dict, key, reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
+    pub fn sym_dict_at_put(&self, dict: RawOop, key: String, value: RawOop) -> Result<()> {
+        self.request_unit(|reply| GciThreadCommand::SymDictAtPut(dict, key, value, reply))
+    }
+
+    pub fn sym_dict_at_obj_put(&self, dict: RawOop, key: RawOop, value: RawOop) -> Result<()> {
+        self.request_unit(|reply| GciThreadCommand::SymDictAtObjPut(dict, key, value, reply))
+    }
+
+    pub fn str_key_value_dict_at(&self, dict: RawOop, key: String) -> Result<RawOop> {
+        self.request_raw(|reply| GciThreadCommand::StrKeyValueDictAt(dict, key, reply))
+    }
+
+    pub fn str_key_value_dict_at_put(
+        &self,
+        dict: RawOop,
+        key: String,
+        value: RawOop,
+    ) -> Result<()> {
+        self.request_unit(|reply| GciThreadCommand::StrKeyValueDictAtPut(dict, key, value, reply))
+    }
+
     pub fn new_string(&self, value: String) -> Result<RawOop> {
         self.request_raw(|reply| GciThreadCommand::NewString(value, reply))
     }
@@ -591,6 +627,8 @@ impl ExperimentalGciThreadWorker {
         bytes: impl IntoIterator<Item = (RawOop, Vec<u8>)>,
         float_oops: impl IntoIterator<Item = (f64, RawOop)>,
         oop_floats: impl IntoIterator<Item = (RawOop, f64)>,
+        sym_dicts: impl IntoIterator<Item = ((RawOop, String), RawOop)>,
+        str_key_dicts: impl IntoIterator<Item = ((RawOop, String), RawOop)>,
         executions: impl IntoIterator<Item = ((String, RawOop), RawOop)>,
         performs: impl IntoIterator<Item = ((RawOop, String, Vec<RawOop>), RawOop)>,
         err_info: Option<GciErrorInfo>,
@@ -605,6 +643,8 @@ impl ExperimentalGciThreadWorker {
                 .map(|(value, oop)| (worker_float_key(value), oop))
                 .collect(),
             oop_floats: oop_floats.into_iter().collect(),
+            sym_dicts: sym_dicts.into_iter().collect(),
+            str_key_dicts: str_key_dicts.into_iter().collect(),
             executions: executions.into_iter().collect(),
             performs: performs.into_iter().collect(),
             err_info,
@@ -671,6 +711,21 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::OopToFlt(oop, reply) => {
                             let _ = reply.send(state.oop_to_flt(oop));
+                        }
+                        GciThreadCommand::SymDictAt(dict, key, reply) => {
+                            let _ = reply.send(state.sym_dict_at(dict, key));
+                        }
+                        GciThreadCommand::SymDictAtPut(dict, key, value, reply) => {
+                            let _ = reply.send(state.sym_dict_at_put(dict, key, value));
+                        }
+                        GciThreadCommand::SymDictAtObjPut(dict, key, value, reply) => {
+                            let _ = reply.send(state.sym_dict_at_obj_put(dict, key, value));
+                        }
+                        GciThreadCommand::StrKeyValueDictAt(dict, key, reply) => {
+                            let _ = reply.send(state.str_key_value_dict_at(dict, key));
+                        }
+                        GciThreadCommand::StrKeyValueDictAtPut(dict, key, value, reply) => {
+                            let _ = reply.send(state.str_key_value_dict_at_put(dict, key, value));
                         }
                         GciThreadCommand::NewString(value, reply) => {
                             let _ = reply.send(state.new_string(value));
@@ -810,6 +865,8 @@ enum GciThreadState {
         bytes: std::collections::BTreeMap<RawOop, Vec<u8>>,
         float_oops: std::collections::BTreeMap<u64, RawOop>,
         oop_floats: std::collections::BTreeMap<RawOop, f64>,
+        sym_dicts: std::collections::BTreeMap<(RawOop, String), RawOop>,
+        str_key_dicts: std::collections::BTreeMap<(RawOop, String), RawOop>,
         executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
         performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
         err_info: Option<GciErrorInfo>,
@@ -1090,6 +1147,119 @@ impl GciThreadState {
         }
     }
 
+    fn sym_dict_at(&self, dict: RawOop, key: String) -> std::result::Result<SymDictLookup, String> {
+        match self {
+            Self::Live(lib) => {
+                let key = CString::new(key)
+                    .map_err(|_| "symDictAt key contains an interior NUL byte.".to_string())?;
+                let mut value = 0;
+                let mut assoc = 0;
+                unsafe {
+                    lib.gci_sym_dict_at(dict, &key, &mut value, &mut assoc)
+                        .map_err(|error| error.to_string())?;
+                }
+                Ok(SymDictLookup {
+                    value: oop_string(value),
+                    assoc: oop_string(assoc),
+                })
+            }
+            #[cfg(test)]
+            Self::PathOnly { sym_dicts, .. } => {
+                let value = sym_dicts.get(&(dict, key)).copied().unwrap_or(OOP_ILLEGAL);
+                Ok(SymDictLookup {
+                    value: oop_string(value),
+                    assoc: if value == OOP_ILLEGAL {
+                        oop_string(OOP_ILLEGAL)
+                    } else {
+                        oop_string(value.saturating_add(1))
+                    },
+                })
+            }
+        }
+    }
+
+    fn sym_dict_at_put(
+        &self,
+        dict: RawOop,
+        key: String,
+        value: RawOop,
+    ) -> std::result::Result<(), String> {
+        match self {
+            Self::Live(lib) => {
+                let key = CString::new(key)
+                    .map_err(|_| "symDictAtPut key contains an interior NUL byte.".to_string())?;
+                unsafe {
+                    lib.gci_sym_dict_at_put(dict, &key, value)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(()),
+        }
+    }
+
+    fn sym_dict_at_obj_put(
+        &self,
+        dict: RawOop,
+        key: RawOop,
+        value: RawOop,
+    ) -> std::result::Result<(), String> {
+        match self {
+            Self::Live(lib) => unsafe {
+                lib.gci_sym_dict_at_obj_put(dict, key, value)
+                    .map_err(|error| error.to_string())
+            },
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(()),
+        }
+    }
+
+    fn str_key_value_dict_at(
+        &self,
+        dict: RawOop,
+        key: String,
+    ) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => {
+                let key = CString::new(key).map_err(|_| {
+                    "strKeyValueDictAt key contains an interior NUL byte.".to_string()
+                })?;
+                let mut value = 0;
+                unsafe {
+                    lib.gci_str_key_value_dict_at(dict, &key, &mut value)
+                        .map_err(|error| error.to_string())?;
+                }
+                Ok(value)
+            }
+            #[cfg(test)]
+            Self::PathOnly { str_key_dicts, .. } => Ok(str_key_dicts
+                .get(&(dict, key))
+                .copied()
+                .unwrap_or(OOP_ILLEGAL)),
+        }
+    }
+
+    fn str_key_value_dict_at_put(
+        &self,
+        dict: RawOop,
+        key: String,
+        value: RawOop,
+    ) -> std::result::Result<(), String> {
+        match self {
+            Self::Live(lib) => {
+                let key = CString::new(key).map_err(|_| {
+                    "strKeyValueDictAtPut key contains an interior NUL byte.".to_string()
+                })?;
+                unsafe {
+                    lib.gci_str_key_value_dict_at_put(dict, &key, value)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(()),
+        }
+    }
+
     fn new_string(&self, value: String) -> std::result::Result<RawOop, String> {
         match self {
             Self::Live(lib) => {
@@ -1199,6 +1369,34 @@ enum GciThreadCommand {
     OopToFlt(
         RawOop,
         std::sync::mpsc::Sender<std::result::Result<f64, String>>,
+    ),
+    SymDictAt(
+        RawOop,
+        String,
+        std::sync::mpsc::Sender<std::result::Result<SymDictLookup, String>>,
+    ),
+    SymDictAtPut(
+        RawOop,
+        String,
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<(), String>>,
+    ),
+    SymDictAtObjPut(
+        RawOop,
+        RawOop,
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<(), String>>,
+    ),
+    StrKeyValueDictAt(
+        RawOop,
+        String,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
+    StrKeyValueDictAtPut(
+        RawOop,
+        String,
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<(), String>>,
     ),
     NewString(
         String,
@@ -1537,6 +1735,7 @@ mod tests {
         let object = 789_000;
         let string_oop = 654_321;
         let float_oop = 246_810;
+        let dict_oop = 135_790;
         let synthetic_error = GciErrorInfo {
             number: 2406,
             fatal: false,
@@ -1554,6 +1753,8 @@ mod tests {
             [(string_oop, b"hello worker".to_vec())],
             [(3.5, float_oop)],
             [(float_oop, 3.5)],
+            [((dict_oop, "Object".to_string()), object)],
+            [((dict_oop, "status".to_string()), string_oop)],
             [(("1 + 1".to_string(), OOP_NIL), i64_to_smallint(2))],
             [(
                 (
@@ -1605,6 +1806,37 @@ mod tests {
         assert_eq!(worker.oop_to_flt(float_oop).unwrap(), 3.5);
         assert!(worker.flt_to_oop(f64::NAN).is_err());
         assert!(worker.oop_to_flt(OOP_NIL).is_err());
+        let lookup = worker.sym_dict_at(dict_oop, "Object".to_string()).unwrap();
+        assert_eq!(lookup.value, object.to_string());
+        assert_ne!(lookup.assoc, OOP_ILLEGAL.to_string());
+        assert_eq!(
+            worker
+                .sym_dict_at(dict_oop, "Missing".to_string())
+                .unwrap()
+                .value,
+            OOP_ILLEGAL.to_string()
+        );
+        worker
+            .sym_dict_at_put(dict_oop, "Object".to_string(), object)
+            .unwrap();
+        worker
+            .sym_dict_at_obj_put(dict_oop, object_class, object)
+            .unwrap();
+        assert_eq!(
+            worker
+                .str_key_value_dict_at(dict_oop, "status".to_string())
+                .unwrap(),
+            string_oop
+        );
+        assert_eq!(
+            worker
+                .str_key_value_dict_at(dict_oop, "missing".to_string())
+                .unwrap(),
+            OOP_ILLEGAL
+        );
+        worker
+            .str_key_value_dict_at_put(dict_oop, "status".to_string(), string_oop)
+            .unwrap();
         assert_eq!(
             worker.new_string("worker string".to_string()).unwrap(),
             synthetic_name_oop(41_000, "worker string")
