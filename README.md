@@ -18,6 +18,9 @@ cargo fmt --check
 cargo test
 ```
 
+The Rust tests cover wire-format parsing and immediate OOP helpers in addition
+to boundary validation for fetch ranges and session ids.
+
 Building the Node addon itself uses napi-rs:
 
 ```sh

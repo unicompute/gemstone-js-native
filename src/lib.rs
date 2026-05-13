@@ -580,4 +580,24 @@ mod tests {
         assert_eq!(validate_session_id(42).unwrap(), 42);
         assert!(validate_session_id(-1).is_err());
     }
+
+    #[test]
+    fn smallint_helpers_round_trip_and_reject_non_smallints() {
+        let oop = smallint_to_oop(-42);
+
+        assert_eq!(oop_to_smallint(oop.clone()).unwrap(), -42);
+        assert!(is_smallint_oop(oop).unwrap());
+        assert!(!is_smallint_oop(OOP_NIL.to_string()).unwrap());
+        assert!(oop_to_smallint(OOP_NIL.to_string()).is_err());
+    }
+
+    #[test]
+    fn character_helpers_round_trip_and_reject_invalid_inputs() {
+        let oop = char_to_oop_string("A".to_string()).unwrap();
+
+        assert_eq!(oop_to_char_string(oop).unwrap(), Some("A".to_string()));
+        assert_eq!(oop_to_char_string(OOP_NIL.to_string()).unwrap(), None);
+        assert!(char_to_oop_string(String::new()).is_err());
+        assert!(char_to_oop_string("AB".to_string()).is_err());
+    }
 }
