@@ -242,6 +242,9 @@ if (!checksumVerifier.includes("createHash") || !checksumVerifier.includes("Chec
 if (!checksumVerifier.includes("Duplicate checksum target")) {
   throw new Error("scripts/verify-checksums.mjs must reject duplicate checksum entries.");
 }
+if (!checksumVerifier.includes("must not be artifact targets")) {
+  throw new Error("scripts/verify-checksums.mjs must reject checksum manifest artifact targets.");
+}
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {
     throw new Error(`index.d.ts is missing public export: ${name}`);

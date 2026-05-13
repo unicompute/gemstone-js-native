@@ -66,6 +66,8 @@ function assertVerifierInputFailures() {
   assertVerifierFails("BAD-SHA256SUMS.txt", "not-a-checksum-line\n");
   assertVerifierFails("MISSING-SHA256SUMS.txt", `${sha256("missing")}  missing.tgz\n`);
   assertVerifierFails("PATH-SHA256SUMS.txt", `${sha256("nested")}  nested/package.tgz\n`);
+  assertVerifierFails("SELF-SHA256SUMS.txt", `${sha256("self-manifest")}  SELF-SHA256SUMS.txt\n`);
+  assertVerifierFails("MANIFEST-TARGET-SHA256SUMS.txt", `${sha256("manifest")}  SHA256SUMS.txt\n`);
   assertVerifierFails("DUPLICATE-SHA256SUMS.txt", [
     `${sha256("package-tarball")}  package.tgz`,
     `${sha256("package-tarball")}  package.tgz`,

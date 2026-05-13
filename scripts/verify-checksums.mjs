@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 
 const manifest = process.argv[2] ?? "SHA256SUMS.txt";
 const manifestPath = resolve(manifest);
@@ -10,6 +10,7 @@ if (!existsSync(manifestPath)) {
 }
 
 const baseDir = dirname(manifestPath);
+const manifestName = basename(manifestPath);
 const lines = readFileSync(manifestPath, "utf8")
   .split(/\r?\n/)
   .filter((line) => line.trim().length > 0);
@@ -27,6 +28,9 @@ for (const line of lines) {
   const [, expected, fileName] = match;
   if (fileName.includes("/") || fileName.includes("\\")) {
     fail(`Checksum file entries must be basenames: ${fileName}`);
+  }
+  if (fileName === manifestName || fileName === "SHA256SUMS.txt") {
+    fail(`Checksum manifests must not be artifact targets: ${fileName}`);
   }
   if (seen.has(fileName)) {
     fail(`Duplicate checksum target: ${fileName}`);

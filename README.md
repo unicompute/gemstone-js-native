@@ -49,9 +49,10 @@ arms, state implementations, docs, and package script contract stay in sync.
 `npm run checksum:check` verifies that the release checksum helper emits stable
 sorted `SHA256SUMS.txt` output, that the verifier accepts matching artifacts
 and rejects mismatches, empty or malformed manifests, missing files, pathful
-entries, duplicate entries, and that writing checksums fails when no artifact
-suffixes match or when suffix filters are malformed, pathful, or duplicated.
-The writer also excludes `SHA256SUMS.txt` itself from artifact suffix matches.
+entries, duplicate entries, manifest artifact targets, and that writing
+checksums fails when no artifact suffixes match or when suffix filters are
+malformed, pathful, or duplicated. The writer also excludes `SHA256SUMS.txt`
+itself from artifact suffix matches.
 `npm run public-surface:check` verifies that `index.js`, `index.d.ts`, the
 loader patcher, and smoke checks agree on exported helpers and `Gci` methods.
 
