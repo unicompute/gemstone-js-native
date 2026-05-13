@@ -444,6 +444,10 @@ impl ExperimentalGciThreadWorker {
         Self::spawn(GciThreadState::Live(lib))
     }
 
+    pub fn init(&self) -> Result<i32> {
+        self.request_i32(GciThreadCommand::Init)
+    }
+
     pub fn library_path(&self) -> Result<String> {
         self.request_string(GciThreadCommand::LibraryPath)
     }
@@ -534,6 +538,10 @@ impl ExperimentalGciThreadWorker {
                 Error::from_reason("Experimental GCI worker thread closed before replying.")
             })?
             .map_err(Error::from_reason)
+    }
+
+    pub fn logout(&self) -> Result<i32> {
+        self.request_i32(GciThreadCommand::Logout)
     }
 
     pub fn add_oop_to_export_set(&self, oop: RawOop) -> Result<()> {
@@ -657,6 +665,8 @@ impl ExperimentalGciThreadWorker {
             executions: executions.into_iter().collect(),
             performs: performs.into_iter().collect(),
             err_info,
+            init_result: 1,
+            logout_result: 1,
             commit_result: true,
             abort_result: true,
             needs_commit: true,
@@ -677,6 +687,9 @@ impl ExperimentalGciThreadWorker {
             .spawn(move || {
                 while let Ok(command) = receiver.recv() {
                     match command {
+                        GciThreadCommand::Init(reply) => {
+                            let _ = reply.send(state.init());
+                        }
                         GciThreadCommand::LibraryPath(reply) => {
                             let _ = reply.send(state.library_path());
                         }
@@ -697,6 +710,9 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::Err(reply) => {
                             let _ = reply.send(state.err());
+                        }
+                        GciThreadCommand::Logout(reply) => {
+                            let _ = reply.send(state.logout());
                         }
                         GciThreadCommand::AddOopToExportSet(oop, reply) => {
                             let _ = reply.send(state.add_oop_to_export_set(oop));
@@ -904,6 +920,8 @@ enum GciThreadState {
         executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
         performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
         err_info: Option<GciErrorInfo>,
+        init_result: i32,
+        logout_result: i32,
         commit_result: bool,
         abort_result: bool,
         needs_commit: bool,
@@ -914,6 +932,14 @@ enum GciThreadState {
 
 #[cfg(feature = "session-thread-spike")]
 impl GciThreadState {
+    fn init(&self) -> std::result::Result<i32, String> {
+        match self {
+            Self::Live(lib) => unsafe { lib.gci_init().map_err(|error| error.to_string()) },
+            #[cfg(test)]
+            Self::PathOnly { init_result, .. } => Ok(*init_result),
+        }
+    }
+
     fn library_path(&self) -> String {
         match self {
             Self::Live(lib) => lib.path().display().to_string(),
@@ -1045,6 +1071,14 @@ impl GciThreadState {
             }
             #[cfg(test)]
             Self::PathOnly { err_info, .. } => Ok(err_info.clone()),
+        }
+    }
+
+    fn logout(&self) -> std::result::Result<i32, String> {
+        match self {
+            Self::Live(lib) => unsafe { lib.gci_logout().map_err(|error| error.to_string()) },
+            #[cfg(test)]
+            Self::PathOnly { logout_result, .. } => Ok(*logout_result),
         }
     }
 
@@ -1382,6 +1416,7 @@ impl GciThreadState {
 
 #[cfg(feature = "session-thread-spike")]
 enum GciThreadCommand {
+    Init(std::sync::mpsc::Sender<std::result::Result<i32, String>>),
     LibraryPath(std::sync::mpsc::Sender<String>),
     FetchSize(
         RawOop,
@@ -1409,6 +1444,7 @@ enum GciThreadCommand {
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
     Err(std::sync::mpsc::Sender<std::result::Result<Option<GciErrorInfo>, String>>),
+    Logout(std::sync::mpsc::Sender<std::result::Result<i32, String>>),
     AddOopToExportSet(
         RawOop,
         std::sync::mpsc::Sender<std::result::Result<(), String>>,
@@ -1832,6 +1868,7 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(worker.init().unwrap(), 1);
         assert_eq!(worker.library_path().unwrap(), path.display().to_string());
         assert_eq!(worker.fetch_size(OOP_NIL).unwrap(), 0);
         assert_eq!(worker.fetch_size(string_oop).unwrap(), 12);
@@ -1860,6 +1897,7 @@ mod tests {
             object_class
         );
         assert_eq!(worker.err().unwrap(), Some(synthetic_error));
+        assert_eq!(worker.logout().unwrap(), 1);
         worker.add_oop_to_export_set(object).unwrap();
         worker.remove_oop_from_export_set(object).unwrap();
         assert!(worker.commit().unwrap());
