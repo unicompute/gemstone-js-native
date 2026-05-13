@@ -25,6 +25,8 @@ const required = [
   "index.d.ts",
   "index.js",
   "package.json",
+  "scripts/check-package.mjs",
+  "scripts/smoke-node.mjs",
 ];
 
 const forbidden = [

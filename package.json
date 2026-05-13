@@ -25,6 +25,8 @@
     "index.d.ts",
     "README.md",
     "LICENSE",
+    "scripts/check-package.mjs",
+    "scripts/smoke-node.mjs",
     "*.node"
   ],
   "scripts": {
