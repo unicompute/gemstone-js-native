@@ -78,6 +78,8 @@ const required = [
   "index.js",
   "package.json",
   "scripts/check-package.mjs",
+  "scripts/live-smoke-node.mjs",
+  "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
   "scripts/smoke-node.mjs",
 ];
@@ -95,14 +97,17 @@ const requiredFileEntries = [
   "README.md",
   "LICENSE",
   "scripts/check-package.mjs",
+  "scripts/live-smoke-node.mjs",
+  "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
   "scripts/smoke-node.mjs",
   "*.node",
 ];
 const requiredScripts = {
-  build: "napi build --platform --release",
-  "build:debug": "napi build --platform",
+  build: "napi build --platform --release && node scripts/patch-loader.mjs",
+  "build:debug": "napi build --platform && node scripts/patch-loader.mjs",
   test: "cargo test",
+  "test:live": "node scripts/live-smoke-node.mjs",
   "test:node": "node scripts/smoke-node.mjs",
   "pack:check": "node scripts/check-package.mjs",
 };
@@ -131,6 +136,9 @@ for (const [name, command] of Object.entries(requiredScripts)) {
 
 const declarations = readFileSync("index.d.ts", "utf8");
 const loader = readFileSync("index.js", "utf8");
+if (!loader.includes("GEMSTONE_GCI_ERROR")) {
+  throw new Error("index.js is missing GemStone GCI error mapping. Run node scripts/patch-loader.mjs after build.");
+}
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {
     throw new Error(`index.d.ts is missing public export: ${name}`);

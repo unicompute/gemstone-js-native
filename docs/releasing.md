@@ -24,13 +24,32 @@ npm pack --json
 The workflow uploads the `.node` file and npm tarball as GitHub Actions
 artifacts so the package contents can be inspected before publishing.
 
+## Artifact Inspection
+
+Before `npm publish`, compare at least one CI tarball with the local dry-run
+package:
+
+```sh
+npm pack --dry-run --json
+tar -tzf gemstone-js-native-*.tgz
+```
+
+Check that the tarball contains `index.js`, `index.d.ts`, `README.md`,
+`LICENSE`, the `scripts/*.mjs` smoke/package helpers, and exactly one generated
+`index.<platform>.node` binary for the artifact platform. It must not contain
+`src/`, `target/`, `Cargo.toml`, `Cargo.lock`, tests, or local editor files.
+Install the `.tgz` into a disposable project and run `node -e
+"const n=require('@gemstone-js/native'); console.log(typeof n.Gci)"` to verify
+the loader resolves the packed binary.
+
 ## Publish Checklist
 
 1. Verify `package.json` and `Cargo.toml` version, license, homepage,
    repository, and description match, and that `package.json` has
    `publishConfig.provenance`.
 2. Run `npm run pack:check` locally after `npm run build`.
-3. Review the workflow tarball artifact contents.
+3. Review the workflow tarball artifact contents with the artifact inspection
+   checklist above.
 4. Publish with provenance:
 
 ```sh

@@ -11,6 +11,9 @@ does not lose precision on 64-bit object pointers.
 The addon validates unsigned decimal OOP strings, finite float inputs, perform
 argument counts, byte ranges, byte counts returned from GCI, and session ids
 before dispatching into GCI so bad JavaScript inputs fail at the boundary.
+Thrown `Gci` method errors are decorated with `code: "GEMSTONE_GCI_ERROR"`,
+the operation name, and any available `GciErr` number, fatal flag, message, and
+reason fields.
 
 ## Local Checks
 
@@ -34,9 +37,15 @@ npm run test:node
 npm run pack:check
 ```
 
+The build scripts run `scripts/patch-loader.mjs` after napi-rs regenerates
+`index.js` so the packed loader keeps the standardized `Gci` error mapping.
 `test:node` loads the generated addon through `index.js`, checks exported OOP
 helpers and `Gci` prototype methods, and covers boolean, character,
 SmallInteger, and invalid-input cases that do not need a live GemStone login.
+Live native checks are opt-in with `GS_RUN_NATIVE_LIVE=1 npm run test:live`;
+they cover login, `executeStr`, `perform`, string and float conversion,
+`StringKeyValueDictionary` helpers, and export-set retain/release against a
+real Stone.
 `pack:check` validates the publishable npm tarball, checks that `index.js` and
 `index.d.ts` expose the same public helpers, verifies the npm and Cargo versions
 and package metadata match, verifies the npm entrypoint/export map, verifies

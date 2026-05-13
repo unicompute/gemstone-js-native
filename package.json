@@ -26,14 +26,17 @@
     "README.md",
     "LICENSE",
     "scripts/check-package.mjs",
+    "scripts/live-smoke-node.mjs",
+    "scripts/patch-loader.mjs",
     "scripts/public-surface.mjs",
     "scripts/smoke-node.mjs",
     "*.node"
   ],
   "scripts": {
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
+    "build": "napi build --platform --release && node scripts/patch-loader.mjs",
+    "build:debug": "napi build --platform && node scripts/patch-loader.mjs",
     "test": "cargo test",
+    "test:live": "node scripts/live-smoke-node.mjs",
     "test:node": "node scripts/smoke-node.mjs",
     "pack:check": "node scripts/check-package.mjs"
   },

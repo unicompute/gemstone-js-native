@@ -15,6 +15,16 @@ export interface GciErrorInfo {
   message: string
   reason?: string
 }
+export interface GemStoneNativeError extends Error {
+  code: 'GEMSTONE_GCI_ERROR'
+  operation: string
+  nativeCode?: string
+  gciNumber?: number
+  fatal?: boolean
+  gciMessage?: string
+  reason?: string
+  info?: GciErrorInfo
+}
 export interface SymDictLookup {
   value: string
   assoc: string
