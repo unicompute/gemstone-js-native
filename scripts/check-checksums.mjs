@@ -119,7 +119,7 @@ function assertNoMatchFails() {
 }
 
 function assertInvalidSuffixFails() {
-  for (const suffix of ["", "tgz", ".", ".tgz/archive", ".node\\backup"]) {
+  for (const suffix of ["", "tgz", ".", ".tgz/archive", ".node\\backup", ".tgz ", ".node\tbackup"]) {
     try {
       execFileSync(process.execPath, [script, suffix], {
         cwd: workspace,

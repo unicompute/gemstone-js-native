@@ -13,6 +13,9 @@ for (const suffix of suffixes) {
   if (suffix.includes("/") || suffix.includes("\\")) {
     fail(`Checksum suffixes must be simple extensions without path separators: ${JSON.stringify(suffix)}`);
   }
+  if (/\s/.test(suffix)) {
+    fail(`Checksum suffixes must be simple extensions without whitespace: ${JSON.stringify(suffix)}`);
+  }
 }
 const uniqueSuffixes = new Set(suffixes);
 if (uniqueSuffixes.size !== suffixes.length) {

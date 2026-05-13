@@ -230,6 +230,9 @@ if (!checksumWriter.includes("startsWith(\".\")")) {
 if (!checksumWriter.includes("path separators")) {
   throw new Error("scripts/write-checksums.mjs must reject pathful artifact suffix filters.");
 }
+if (!checksumWriter.includes("without whitespace")) {
+  throw new Error("scripts/write-checksums.mjs must reject whitespace-bearing artifact suffix filters.");
+}
 if (!checksumWriter.includes("uniqueSuffixes")) {
   throw new Error("scripts/write-checksums.mjs must reject duplicate artifact suffix filters.");
 }
