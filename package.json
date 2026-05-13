@@ -3,6 +3,14 @@
   "version": "0.1.0-alpha.0",
   "description": "napi-rs native GCI bindings for gemstone-js.",
   "license": "MIT",
+  "homepage": "https://github.com/unicompute/gemstone-js-native#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unicompute/gemstone-js-native.git"
+  },
+  "bugs": {
+    "url": "https://github.com/unicompute/gemstone-js-native/issues"
+  },
   "main": "./index.js",
   "types": "./index.d.ts",
   "files": [

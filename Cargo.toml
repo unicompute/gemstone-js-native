@@ -3,12 +3,15 @@ name = "gemstone-js-native"
 version = "0.1.0-alpha.0"
 edition = "2021"
 license = "MIT"
+homepage = "https://github.com/unicompute/gemstone-js-native"
+repository = "https://github.com/unicompute/gemstone-js-native"
+description = "napi-rs native GCI bindings for gemstone-js."
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-gemstone-gci = { path = "../gemstone-rs/crates/gemstone-gci" }
+gemstone-gci = { git = "https://github.com/unicompute/gemstone-rs", package = "gemstone-gci", branch = "main" }
 napi = { version = "2", default-features = false, features = ["napi8"] }
 napi-derive = "2"
 

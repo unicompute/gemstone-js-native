@@ -45,6 +45,7 @@ dependencies = [
 [[package]]
 name = "gemstone-gci"
 version = "0.2.0"
+source = "git+https://github.com/unicompute/gemstone-rs?branch=main#8b6b5c8d670e691de41a135e378e9d05f1a1e00a"
 dependencies = [
  "libloading",
 ]
