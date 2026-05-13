@@ -14,6 +14,10 @@ export interface GciErrorInfo {
   fatal: boolean
   message: string
   reason?: string
+  category: string
+  context: string
+  exceptionObj: string
+  args: Array<string>
 }
 export interface GemStoneNativeError extends Error {
   code: 'GEMSTONE_GCI_ERROR'
@@ -23,6 +27,10 @@ export interface GemStoneNativeError extends Error {
   fatal?: boolean
   gciMessage?: string
   reason?: string
+  category?: string
+  context?: string
+  exceptionObj?: string
+  args?: Array<string>
   info?: GciErrorInfo
 }
 export declare function isGemStoneNativeError(error: unknown): error is GemStoneNativeError
@@ -36,7 +44,7 @@ export declare function isSmallintOop(value: string): boolean
 export declare function boolToOop(value: boolean): string
 export declare function charToOopString(value: string): string
 export declare function oopToCharString(value: string): string | null
-export class Gci {
+export declare class Gci {
   constructor(libPath?: string | undefined | null)
   init(libPath?: string | undefined | null): number
   libraryPath(): string

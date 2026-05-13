@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const args = parseArgs(process.argv.slice(2));
 const loaderPath = args.loaderPath ?? fileURLToPath(new URL("../index.js", import.meta.url));
+const typesPath = args.typesPath ?? (args.loaderPath ? undefined : fileURLToPath(new URL("../index.d.ts", import.meta.url)));
 const source = readFileSync(loaderPath, "utf8");
 const checkOnly = args.checkOnly;
 
@@ -17,9 +18,24 @@ const requiredPatchedSnippets = [
   "mapped.code = 'GEMSTONE_GCI_ERROR'",
   "mapped.operation = operation",
   "mapped.gciNumber = info.number",
+  "mapped.category = info.category",
   "module.exports.Gci = Gci",
   "module.exports.isGemStoneNativeError = isGemStoneNativeError",
 ];
+const requiredDeclarationSnippets = [
+  "export interface GemStoneNativeError extends Error",
+  "export declare function isGemStoneNativeError(error: unknown): error is GemStoneNativeError",
+  "category: string",
+  "context: string",
+  "exceptionObj: string",
+  "args: Array<string>",
+  "category?: string",
+  "context?: string",
+  "exceptionObj?: string",
+  "args?: Array<string>",
+];
+
+patchOrCheckDeclarations(typesPath, checkOnly);
 
 if (source.includes("GEMSTONE_GCI_ERROR")) {
   assertPatchedLoader(source);
@@ -120,6 +136,10 @@ function mapGciError(error, gci, operation) {
         mapped.fatal = info.fatal
         mapped.gciMessage = info.message
         mapped.reason = info.reason
+        mapped.category = info.category
+        mapped.context = info.context
+        mapped.exceptionObj = info.exceptionObj
+        mapped.args = info.args
         mapped.info = info
       }
     } catch {}
@@ -167,9 +187,58 @@ function assertPatchedLoader(value) {
   }
 }
 
+function patchOrCheckDeclarations(path, checkOnly) {
+  if (!path) return;
+  const declarations = readFileSync(path, "utf8");
+  if (declarations.includes("GemStoneNativeError")) {
+    assertPatchedDeclarations(declarations);
+    return;
+  }
+  if (checkOnly) {
+    throw new Error(`${path} is missing GemStone native error declarations. Run node scripts/patch-loader.mjs after build.`);
+  }
+
+  const marker = "export interface SymDictLookup";
+  if (!declarations.includes(marker)) {
+    throw new Error(`Cannot patch ${path}: SymDictLookup declaration was not found.`);
+  }
+  const patched = declarations.replace(marker, `${errorDeclarationBlock()}${marker}`);
+  assertPatchedDeclarations(patched);
+  writeFileSync(path, patched);
+  console.log(`Patched ${path} with GemStone native error declarations.`);
+}
+
+function assertPatchedDeclarations(value) {
+  for (const snippet of requiredDeclarationSnippets) {
+    if (!value.includes(snippet)) {
+      throw new Error(`index.d.ts GemStone native error declarations are incomplete: missing ${JSON.stringify(snippet)}.`);
+    }
+  }
+}
+
+function errorDeclarationBlock() {
+  return `export interface GemStoneNativeError extends Error {
+  code: 'GEMSTONE_GCI_ERROR'
+  operation: string
+  nativeCode?: string
+  gciNumber?: number
+  fatal?: boolean
+  gciMessage?: string
+  reason?: string
+  category?: string
+  context?: string
+  exceptionObj?: string
+  args?: Array<string>
+  info?: GciErrorInfo
+}
+export declare function isGemStoneNativeError(error: unknown): error is GemStoneNativeError
+`;
+}
+
 function parseArgs(argv) {
   let checkOnly = false;
   let loaderPath;
+  let typesPath;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--check") {
@@ -179,9 +248,14 @@ function parseArgs(argv) {
       index += 1;
       if (!value) throw new Error("--loader requires a path.");
       loaderPath = resolve(value);
+    } else if (arg === "--types") {
+      const value = argv[index + 1];
+      index += 1;
+      if (!value) throw new Error("--types requires a path.");
+      typesPath = resolve(value);
     } else {
       throw new Error(`Unexpected argument: ${arg}`);
     }
   }
-  return { checkOnly, loaderPath };
+  return { checkOnly, loaderPath, typesPath };
 }

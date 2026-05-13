@@ -224,17 +224,32 @@ switch (platform) {
         }
         break
       case 'arm':
-        localFileExisted = existsSync(
-          join(__dirname, 'index.linux-arm-gnueabihf.node')
-        )
-        try {
-          if (localFileExisted) {
-            nativeBinding = require('./index.linux-arm-gnueabihf.node')
-          } else {
-            nativeBinding = require('@gemstone-js/native-linux-arm-gnueabihf')
+        if (isMusl()) {
+          localFileExisted = existsSync(
+            join(__dirname, 'index.linux-arm-musleabihf.node')
+          )
+          try {
+            if (localFileExisted) {
+              nativeBinding = require('./index.linux-arm-musleabihf.node')
+            } else {
+              nativeBinding = require('@gemstone-js/native-linux-arm-musleabihf')
+            }
+          } catch (e) {
+            loadError = e
           }
-        } catch (e) {
-          loadError = e
+        } else {
+          localFileExisted = existsSync(
+            join(__dirname, 'index.linux-arm-gnueabihf.node')
+          )
+          try {
+            if (localFileExisted) {
+              nativeBinding = require('./index.linux-arm-gnueabihf.node')
+            } else {
+              nativeBinding = require('@gemstone-js/native-linux-arm-gnueabihf')
+            }
+          } catch (e) {
+            loadError = e
+          }
         }
         break
       case 'riscv64':
@@ -373,6 +388,10 @@ function mapGciError(error, gci, operation) {
         mapped.fatal = info.fatal
         mapped.gciMessage = info.message
         mapped.reason = info.reason
+        mapped.category = info.category
+        mapped.context = info.context
+        mapped.exceptionObj = info.exceptionObj
+        mapped.args = info.args
         mapped.info = info
       }
     } catch {}

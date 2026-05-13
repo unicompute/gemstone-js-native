@@ -21,6 +21,10 @@ pub struct GciErrorInfo {
     pub fatal: bool,
     pub message: String,
     pub reason: Option<String>,
+    pub category: String,
+    pub context: String,
+    pub exception_obj: String,
+    pub args: Vec<String>,
 }
 
 #[napi(object)]
@@ -145,18 +149,7 @@ impl Gci {
         if ok == 0 && err.number == 0 {
             return Ok(None);
         }
-        let message = err.message_text();
-        let reason = err.reason_text();
-        Ok(Some(GciErrorInfo {
-            number: err.number,
-            fatal: err.fatal != 0,
-            message,
-            reason: if reason.is_empty() {
-                None
-            } else {
-                Some(reason)
-            },
-        }))
+        Ok(Some(gci_error_info(err)))
     }
 
     #[napi(js_name = "executeStr")]
@@ -544,6 +537,31 @@ fn perform_arg_count(count: usize) -> Result<i32> {
         .map_err(|_| Error::from_reason("perform argument count exceeds i32 range."))
 }
 
+fn gci_error_info(err: GciErrSType) -> GciErrorInfo {
+    let reason = err.reason_text();
+    let arg_count = usize::try_from(err.arg_count.max(0))
+        .unwrap_or(0)
+        .min(err.args.len());
+    GciErrorInfo {
+        number: err.number,
+        fatal: err.fatal != 0,
+        message: err.message_text(),
+        reason: if reason.is_empty() {
+            None
+        } else {
+            Some(reason)
+        },
+        category: oop_string(err.category),
+        context: oop_string(err.context),
+        exception_obj: oop_string(err.exception_obj),
+        args: err.args[..arg_count]
+            .iter()
+            .copied()
+            .map(oop_string)
+            .collect(),
+    }
+}
+
 fn to_napi_error(error: impl std::fmt::Display) -> Error {
     Error::from_reason(error.to_string())
 }
@@ -552,6 +570,7 @@ fn to_napi_error(error: impl std::fmt::Display) -> Error {
 mod tests {
     use super::*;
     use gemstone_gci::{char_to_oop, i64_to_smallint};
+    use std::os::raw::c_char;
 
     #[test]
     fn parse_oop_accepts_decimal_u64_values() {
@@ -635,6 +654,34 @@ mod tests {
     }
 
     #[test]
+    fn gci_error_info_includes_oop_context_and_clamped_args() {
+        let mut err = GciErrSType::default();
+        err.category = 1000;
+        err.context = 1001;
+        err.exception_obj = 1002;
+        err.args[0] = 1003;
+        err.args[1] = 1004;
+        err.arg_count = 99;
+        err.number = 2406;
+        err.fatal = 1;
+        write_c_char_array(&mut err.message, "message text");
+        write_c_char_array(&mut err.reason, "reason text");
+
+        let info = gci_error_info(err);
+
+        assert_eq!(info.number, 2406);
+        assert!(info.fatal);
+        assert_eq!(info.message, "message text");
+        assert_eq!(info.reason.as_deref(), Some("reason text"));
+        assert_eq!(info.category, "1000");
+        assert_eq!(info.context, "1001");
+        assert_eq!(info.exception_obj, "1002");
+        assert_eq!(info.args.len(), err.args.len());
+        assert_eq!(info.args[0], "1003");
+        assert_eq!(info.args[1], "1004");
+    }
+
+    #[test]
     fn smallint_helpers_round_trip_and_reject_non_smallints() {
         let oop = smallint_to_oop(-42);
 
@@ -652,5 +699,12 @@ mod tests {
         assert_eq!(oop_to_char_string(OOP_NIL.to_string()).unwrap(), None);
         assert!(char_to_oop_string(String::new()).is_err());
         assert!(char_to_oop_string("AB".to_string()).is_err());
+    }
+
+    fn write_c_char_array<const N: usize>(target: &mut [c_char; N], value: &str) {
+        target.fill(0);
+        for (slot, byte) in target.iter_mut().zip(value.bytes()) {
+            *slot = byte as c_char;
+        }
     }
 }

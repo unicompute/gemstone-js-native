@@ -99,23 +99,29 @@ function assertMappedGciError(fn, operation, message) {
 function assertPatchLoaderPatchesGeneratedFixture() {
   const dir = mkdtempSync(join(tmpdir(), "gemstone-js-native-loader-"));
   const loaderPath = join(dir, "index.js");
+  const typesPath = join(dir, "index.d.ts");
   const patchScript = fileURLToPath(new URL("./patch-loader.mjs", import.meta.url));
   try {
     writeFileSync(loaderPath, generatedLoaderFixture());
+    writeFileSync(typesPath, generatedDeclarationFixture());
     assertCommandFails(
-      () => execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--check"], { encoding: "utf8", stdio: "pipe" }),
-      "patch-loader --check should reject an unpatched generated loader fixture.",
+      () => execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--types", typesPath, "--check"], { encoding: "utf8", stdio: "pipe" }),
+      "patch-loader --check should reject unpatched generated fixtures.",
     );
-    execFileSync(process.execPath, [patchScript, "--loader", loaderPath], { encoding: "utf8" });
+    execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--types", typesPath], { encoding: "utf8" });
     const patched = readFileSync(loaderPath, "utf8");
+    const patchedTypes = readFileSync(typesPath, "utf8");
     if (
       !patched.includes("GEMSTONE_GCI_ERROR")
       || !patched.includes("class Gci extends NativeGci")
       || !patched.includes("module.exports.isGemStoneNativeError = isGemStoneNativeError")
+      || !patchedTypes.includes("interface GemStoneNativeError")
+      || !patchedTypes.includes("isGemStoneNativeError(error: unknown)")
+      || !patchedTypes.includes("category?: string")
     ) {
-      throw new Error("patch-loader did not apply GemStone GCI error mapping to a generated loader fixture.");
+      throw new Error("patch-loader did not apply GemStone GCI error mapping to generated fixtures.");
     }
-    execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--check"], { encoding: "utf8" });
+    execFileSync(process.execPath, [patchScript, "--loader", loaderPath, "--types", typesPath, "--check"], { encoding: "utf8" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -141,5 +147,23 @@ module.exports.isSmallintOop = isSmallintOop
 module.exports.boolToOop = boolToOop
 module.exports.charToOopString = charToOopString
 module.exports.oopToCharString = oopToCharString
+`;
+}
+
+function generatedDeclarationFixture() {
+  return `export interface GciErrorInfo {
+  number: number
+  fatal: boolean
+  message: string
+  reason?: string
+  category: string
+  context: string
+  exceptionObj: string
+  args: Array<string>
+}
+export interface SymDictLookup {
+  value: string
+  assoc: string
+}
 `;
 }
