@@ -15,7 +15,13 @@ jobs:
         rust: [stable]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
       - run: cargo test
+      - run: npm install
+      - run: npm run build
+      - run: npm run pack:check

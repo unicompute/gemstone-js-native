@@ -13,18 +13,31 @@
   },
   "main": "./index.js",
   "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "default": "./index.js"
+    }
+  },
   "files": [
     "index.js",
     "index.d.ts",
+    "README.md",
+    "LICENSE",
     "*.node"
   ],
   "scripts": {
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "test": "cargo test"
+    "test": "cargo test",
+    "pack:check": "node scripts/check-package.mjs"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "gemstone",
