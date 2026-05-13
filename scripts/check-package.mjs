@@ -81,6 +81,39 @@ const publicExports = [
   "charToOopString",
   "oopToCharString",
 ];
+const gciMethods = [
+  "init",
+  "libraryPath",
+  "encrypt",
+  "setNet",
+  "loginEx",
+  "logout",
+  "commit",
+  "abort",
+  "err",
+  "executeStr",
+  "perform",
+  "newString",
+  "newSymbol",
+  "newOop",
+  "resolveSymbol",
+  "fetchClass",
+  "fetchSize",
+  "fetchBytes",
+  "getSessionId",
+  "setSessionId",
+  "needsCommit",
+  "inTransaction",
+  "fltToOop",
+  "oopToFlt",
+  "symDictAt",
+  "symDictAtPut",
+  "symDictAtObjPut",
+  "strKeyValueDictAt",
+  "strKeyValueDictAtPut",
+  "addOopToExportSet",
+  "removeOopFromExportSet",
+];
 
 for (const path of required) {
   if (!fileSet.has(path)) {
@@ -96,6 +129,11 @@ for (const name of publicExports) {
   }
   if (!loader.includes(`module.exports.${name}`)) {
     throw new Error(`index.js is missing public export: ${name}`);
+  }
+}
+for (const name of gciMethods) {
+  if (!declarations.includes(`  ${name}(`)) {
+    throw new Error(`index.d.ts is missing Gci method declaration: ${name}`);
   }
 }
 
