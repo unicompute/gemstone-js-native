@@ -18,6 +18,7 @@ if (lines.length === 0) {
   fail(`Checksum manifest is empty: ${manifest}`);
 }
 
+const seen = new Set();
 for (const line of lines) {
   const match = line.match(/^([a-fA-F0-9]{64})  ([^\r\n]+)$/);
   if (!match) {
@@ -27,6 +28,10 @@ for (const line of lines) {
   if (fileName.includes("/") || fileName.includes("\\")) {
     fail(`Checksum file entries must be basenames: ${fileName}`);
   }
+  if (seen.has(fileName)) {
+    fail(`Duplicate checksum target: ${fileName}`);
+  }
+  seen.add(fileName);
   const filePath = resolve(baseDir, fileName);
   if (!existsSync(filePath)) {
     fail(`Checksum target not found: ${fileName}`);

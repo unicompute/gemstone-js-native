@@ -218,6 +218,9 @@ if (!checksumWriter.includes("createHash") || !checksumWriter.includes("sha256")
 if (!checksumVerifier.includes("createHash") || !checksumVerifier.includes("Checksum mismatch")) {
   throw new Error("scripts/verify-checksums.mjs must verify sha256 digests and report mismatches.");
 }
+if (!checksumVerifier.includes("Duplicate checksum target")) {
+  throw new Error("scripts/verify-checksums.mjs must reject duplicate checksum entries.");
+}
 for (const name of publicExports) {
   if (!declarations.includes(` ${name}`)) {
     throw new Error(`index.d.ts is missing public export: ${name}`);
