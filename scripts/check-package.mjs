@@ -227,6 +227,9 @@ if (!checksumWriter.includes("createHash") || !checksumWriter.includes("sha256")
 if (!checksumWriter.includes("startsWith(\".\")")) {
   throw new Error("scripts/write-checksums.mjs must validate artifact suffix filters.");
 }
+if (!checksumWriter.includes("path separators")) {
+  throw new Error("scripts/write-checksums.mjs must reject pathful artifact suffix filters.");
+}
 if (!checksumWriter.includes("uniqueSuffixes")) {
   throw new Error("scripts/write-checksums.mjs must reject duplicate artifact suffix filters.");
 }

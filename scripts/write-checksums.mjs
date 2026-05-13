@@ -10,6 +10,9 @@ for (const suffix of suffixes) {
   if (!suffix.startsWith(".") || suffix.length < 2) {
     fail(`Checksum suffixes must start with "." and include an extension name: ${JSON.stringify(suffix)}`);
   }
+  if (suffix.includes("/") || suffix.includes("\\")) {
+    fail(`Checksum suffixes must be simple extensions without path separators: ${JSON.stringify(suffix)}`);
+  }
 }
 const uniqueSuffixes = new Set(suffixes);
 if (uniqueSuffixes.size !== suffixes.length) {
