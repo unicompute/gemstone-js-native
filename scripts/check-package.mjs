@@ -103,6 +103,11 @@ const nativeBinaries = files.filter((file) => file.endsWith(".node"));
 if (nativeBinaries.length === 0) {
   throw new Error("npm pack is missing a native .node binary. Run npm run build before pack:check.");
 }
+for (const binary of nativeBinaries) {
+  if (!loader.includes(JSON.stringify(binary)) && !loader.includes(`'${binary}'`)) {
+    throw new Error(`index.js does not reference packed native binary: ${binary}`);
+  }
+}
 
 for (const path of forbidden) {
   const included = files.find((file) => file === path || file.startsWith(`${path}/`) || file.endsWith(`/${path}`));
