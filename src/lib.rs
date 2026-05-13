@@ -471,16 +471,31 @@ impl ExperimentalGciThreadWorker {
             .map_err(Error::from_reason)
     }
 
+    pub fn execute_str(&self, source: String, receiver_oop: RawOop) -> Result<RawOop> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(GciThreadCommand::ExecuteStr(source, receiver_oop, reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
     #[cfg(test)]
     fn start_for_path_with_readbacks(
         path: PathBuf,
         sizes: impl IntoIterator<Item = (RawOop, i64)>,
         classes: impl IntoIterator<Item = (RawOop, RawOop)>,
+        executions: impl IntoIterator<Item = ((String, RawOop), RawOop)>,
     ) -> Result<Self> {
         Self::spawn(GciThreadState::PathOnly {
             path,
             sizes: sizes.into_iter().collect(),
             classes: classes.into_iter().collect(),
+            executions: executions.into_iter().collect(),
         })
     }
 
@@ -504,6 +519,9 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::FetchClass(oop, reply) => {
                             let _ = reply.send(state.fetch_class(oop));
+                        }
+                        GciThreadCommand::ExecuteStr(source, receiver_oop, reply) => {
+                            let _ = reply.send(state.execute_str(source, receiver_oop));
                         }
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
@@ -556,6 +574,7 @@ enum GciThreadState {
         path: PathBuf,
         sizes: std::collections::BTreeMap<RawOop, i64>,
         classes: std::collections::BTreeMap<RawOop, RawOop>,
+        executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
     },
 }
 
@@ -594,6 +613,28 @@ impl GciThreadState {
                 .ok_or_else(|| format!("No synthetic fetchClass result for OOP {oop}.")),
         }
     }
+
+    fn execute_str(
+        &self,
+        source: String,
+        receiver_oop: RawOop,
+    ) -> std::result::Result<RawOop, String> {
+        match self {
+            Self::Live(lib) => {
+                let source = CString::new(source)
+                    .map_err(|_| "executeStr source contains an interior NUL byte.".to_string())?;
+                unsafe {
+                    lib.gci_execute_str(&source, receiver_oop)
+                        .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { executions, .. } => executions
+                .get(&(source.clone(), receiver_oop))
+                .copied()
+                .ok_or_else(|| format!("No synthetic executeStr result for source {source:?} and receiver {receiver_oop}.")),
+        }
+    }
 }
 
 #[cfg(feature = "session-thread-spike")]
@@ -604,6 +645,11 @@ enum GciThreadCommand {
         std::sync::mpsc::Sender<std::result::Result<i64, String>>,
     ),
     FetchClass(
+        RawOop,
+        std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
+    ),
+    ExecuteStr(
+        String,
         RawOop,
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
@@ -892,12 +938,17 @@ mod tests {
             path.clone(),
             [(OOP_NIL, 0), (i64_to_smallint(42), 0)],
             [(OOP_NIL, object_class)],
+            [(("1 + 1".to_string(), OOP_NIL), i64_to_smallint(2))],
         )
         .unwrap();
 
         assert_eq!(worker.library_path().unwrap(), path.display().to_string());
         assert_eq!(worker.fetch_size(OOP_NIL).unwrap(), 0);
         assert_eq!(worker.fetch_class(OOP_NIL).unwrap(), object_class);
+        assert_eq!(
+            worker.execute_str("1 + 1".to_string(), OOP_NIL).unwrap(),
+            i64_to_smallint(2)
+        );
         assert_ne!(
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())
