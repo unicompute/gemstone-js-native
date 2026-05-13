@@ -472,6 +472,19 @@ impl ExperimentalGciThreadWorker {
             .map_err(Error::from_reason)
     }
 
+    pub fn fetch_bytes(&self, oop: RawOop, start: i64, count: i64) -> Result<Vec<u8>> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(GciThreadCommand::FetchBytes(oop, start, count, reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
+    }
+
     pub fn execute_str(&self, source: String, receiver_oop: RawOop) -> Result<RawOop> {
         let (reply, receiver) = std::sync::mpsc::channel();
         self.sender
@@ -566,6 +579,7 @@ impl ExperimentalGciThreadWorker {
         path: PathBuf,
         sizes: impl IntoIterator<Item = (RawOop, i64)>,
         classes: impl IntoIterator<Item = (RawOop, RawOop)>,
+        bytes: impl IntoIterator<Item = (RawOop, Vec<u8>)>,
         executions: impl IntoIterator<Item = ((String, RawOop), RawOop)>,
         performs: impl IntoIterator<Item = ((RawOop, String, Vec<RawOop>), RawOop)>,
         err_info: Option<GciErrorInfo>,
@@ -574,6 +588,7 @@ impl ExperimentalGciThreadWorker {
             path,
             sizes: sizes.into_iter().collect(),
             classes: classes.into_iter().collect(),
+            bytes: bytes.into_iter().collect(),
             executions: executions.into_iter().collect(),
             performs: performs.into_iter().collect(),
             err_info,
@@ -604,6 +619,9 @@ impl ExperimentalGciThreadWorker {
                         }
                         GciThreadCommand::FetchClass(oop, reply) => {
                             let _ = reply.send(state.fetch_class(oop));
+                        }
+                        GciThreadCommand::FetchBytes(oop, start, count, reply) => {
+                            let _ = reply.send(state.fetch_bytes(oop, start, count));
                         }
                         GciThreadCommand::ExecuteStr(source, receiver_oop, reply) => {
                             let _ = reply.send(state.execute_str(source, receiver_oop));
@@ -749,6 +767,7 @@ enum GciThreadState {
         path: PathBuf,
         sizes: std::collections::BTreeMap<RawOop, i64>,
         classes: std::collections::BTreeMap<RawOop, RawOop>,
+        bytes: std::collections::BTreeMap<RawOop, Vec<u8>>,
         executions: std::collections::BTreeMap<(String, RawOop), RawOop>,
         performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
         err_info: Option<GciErrorInfo>,
@@ -792,6 +811,38 @@ impl GciThreadState {
                 .get(&oop)
                 .copied()
                 .ok_or_else(|| format!("No synthetic fetchClass result for OOP {oop}.")),
+        }
+    }
+
+    fn fetch_bytes(
+        &self,
+        oop: RawOop,
+        start: i64,
+        count: i64,
+    ) -> std::result::Result<Vec<u8>, String> {
+        let offset = worker_fetch_start_to_offset(start)?;
+        let count = worker_fetch_count_to_usize(count)?;
+        match self {
+            Self::Live(lib) => {
+                let mut bytes = vec![0_u8; count];
+                let read = unsafe {
+                    lib.gci_fetch_bytes(oop, start, bytes.as_mut_ptr().cast(), count as i64)
+                        .map_err(|error| error.to_string())?
+                };
+                bytes.truncate(worker_fetch_read_to_len(read, bytes.len())?);
+                Ok(bytes)
+            }
+            #[cfg(test)]
+            Self::PathOnly { bytes, .. } => {
+                let data = bytes
+                    .get(&oop)
+                    .ok_or_else(|| format!("No synthetic fetchBytes result for OOP {oop}."))?;
+                if offset >= data.len() {
+                    return Ok(Vec::new());
+                }
+                let end = offset.saturating_add(count).min(data.len());
+                Ok(data[offset..end].to_vec())
+            }
         }
     }
 
@@ -1032,6 +1083,12 @@ enum GciThreadCommand {
         RawOop,
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
+    FetchBytes(
+        RawOop,
+        i64,
+        i64,
+        std::sync::mpsc::Sender<std::result::Result<Vec<u8>, String>>,
+    ),
     ExecuteStr(
         String,
         RawOop,
@@ -1080,6 +1137,32 @@ enum GciThreadCommand {
 #[cfg(all(feature = "session-thread-spike", test))]
 fn synthetic_name_oop(base: RawOop, value: &str) -> RawOop {
     base + value.bytes().map(RawOop::from).sum::<RawOop>()
+}
+
+#[cfg(feature = "session-thread-spike")]
+fn worker_fetch_start_to_offset(start: i64) -> std::result::Result<usize, String> {
+    if start < 1 {
+        return Err("fetchBytes start must be positive.".to_string());
+    }
+    usize::try_from(start - 1).map_err(|_| "fetchBytes start exceeds usize range.".to_string())
+}
+
+#[cfg(feature = "session-thread-spike")]
+fn worker_fetch_count_to_usize(count: i64) -> std::result::Result<usize, String> {
+    if count < 0 {
+        return Err("fetchBytes count must be non-negative.".to_string());
+    }
+    usize::try_from(count).map_err(|_| "fetchBytes count exceeds usize range.".to_string())
+}
+
+#[cfg(feature = "session-thread-spike")]
+fn worker_fetch_read_to_len(read: i64, buffer_len: usize) -> std::result::Result<usize, String> {
+    if read < 0 {
+        return Err("GciFetchBytes_ returned a negative byte count.".to_string());
+    }
+    let read = usize::try_from(read)
+        .map_err(|_| "GciFetchBytes_ byte count exceeds usize range.".to_string())?;
+    Ok(read.min(buffer_len))
 }
 
 #[napi(js_name = "smallintToOop")]
@@ -1360,6 +1443,7 @@ mod tests {
         let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
         let object_class = 123_456;
         let object = 789_000;
+        let string_oop = 654_321;
         let synthetic_error = GciErrorInfo {
             number: 2406,
             fatal: false,
@@ -1372,8 +1456,9 @@ mod tests {
         };
         let worker = ExperimentalGciThreadWorker::start_for_path_with_readbacks(
             path.clone(),
-            [(OOP_NIL, 0), (i64_to_smallint(42), 0)],
+            [(OOP_NIL, 0), (i64_to_smallint(42), 0), (string_oop, 12)],
             [(OOP_NIL, object_class)],
+            [(string_oop, b"hello worker".to_vec())],
             [(("1 + 1".to_string(), OOP_NIL), i64_to_smallint(2))],
             [(
                 (
@@ -1389,7 +1474,17 @@ mod tests {
 
         assert_eq!(worker.library_path().unwrap(), path.display().to_string());
         assert_eq!(worker.fetch_size(OOP_NIL).unwrap(), 0);
+        assert_eq!(worker.fetch_size(string_oop).unwrap(), 12);
         assert_eq!(worker.fetch_class(OOP_NIL).unwrap(), object_class);
+        assert_eq!(
+            worker.fetch_bytes(string_oop, 1, 5).unwrap(),
+            b"hello".to_vec()
+        );
+        assert_eq!(
+            worker.fetch_bytes(string_oop, 7, 6).unwrap(),
+            b"worker".to_vec()
+        );
+        assert!(worker.fetch_bytes(string_oop, 0, 1).is_err());
         assert_eq!(
             worker.execute_str("1 + 1".to_string(), OOP_NIL).unwrap(),
             i64_to_smallint(2)

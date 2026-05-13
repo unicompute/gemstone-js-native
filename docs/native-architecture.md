@@ -63,13 +63,15 @@ full JavaScript API is moved onto it.
 
 The `session-thread-spike` Cargo feature now compiles an
 `ExperimentalGciThreadWorker`. The worker owns a background Rust thread and
-routes read-only `library_path()`, `fetch_size()`, and `fetch_class()` requests
-through a channel before replying to the caller. It also has queued
+routes read-only `library_path()`, `fetch_size()`, `fetch_class()`, and
+`fetch_bytes()` requests through a channel before replying to the caller. It
+also has queued
 `execute_str()`, `perform()`, `err()`, and export-set retain/release paths as
 the first session-bound call shapes, along with queued `commit()`, `abort()`,
 `needs_commit()`, `in_transaction()`, `new_string()`, `new_symbol()`,
 `new_oop()`, and `resolve_symbol()` calls. The live worker arm calls
-`GciFetchSize_`, `GciFetchClass_`, `GciExecuteStr_`, `GciPerform_`, `GciErr_`,
+`GciFetchSize_`, `GciFetchClass_`, `GciFetchBytes_`, `GciExecuteStr_`,
+`GciPerform_`, `GciErr_`,
 transaction and allocation functions, and optional export-set symbols on the
 worker thread; the feature test uses synthetic readback, execution, perform,
 error, transaction, and allocation data to verify the queue and reply path from
