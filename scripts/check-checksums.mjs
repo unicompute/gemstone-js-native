@@ -37,6 +37,7 @@ try {
   });
   assertMismatchFails();
   assertVerifierInputFailures();
+  assertInvalidSuffixFails();
   assertNoMatchFails();
   process.stdout.write("Checksum helper check passed.\n");
 } finally {
@@ -94,6 +95,21 @@ function assertNoMatchFails() {
     return;
   }
   throw new Error("write-checksums.mjs should fail when no files match.");
+}
+
+function assertInvalidSuffixFails() {
+  for (const suffix of ["", "tgz", "."]) {
+    try {
+      execFileSync(process.execPath, [script, suffix], {
+        cwd: workspace,
+        encoding: "utf8",
+        stdio: "pipe",
+      });
+    } catch {
+      continue;
+    }
+    throw new Error(`write-checksums.mjs should fail for invalid suffix ${JSON.stringify(suffix)}.`);
+  }
 }
 
 function sha256(value) {

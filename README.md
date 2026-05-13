@@ -50,7 +50,7 @@ arms, state implementations, docs, and package script contract stay in sync.
 sorted `SHA256SUMS.txt` output, that the verifier accepts matching artifacts
 and rejects mismatches, empty or malformed manifests, missing files, pathful
 entries, duplicate entries, and that writing checksums fails when no artifact
-suffixes match.
+suffixes match or when suffix filters are malformed.
 `npm run public-surface:check` verifies that `index.js`, `index.d.ts`, the
 loader patcher, and smoke checks agree on exported helpers and `Gci` methods.
 

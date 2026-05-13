@@ -6,6 +6,11 @@ const suffixes = process.argv.slice(2);
 if (suffixes.length === 0) {
   fail("Usage: node scripts/write-checksums.mjs <suffix> [suffix...]");
 }
+for (const suffix of suffixes) {
+  if (!suffix.startsWith(".") || suffix.length < 2) {
+    fail(`Checksum suffixes must start with "." and include an extension name: ${JSON.stringify(suffix)}`);
+  }
+}
 
 const files = readdirSync(".")
   .filter((file) => suffixes.some((suffix) => file.endsWith(suffix)))
