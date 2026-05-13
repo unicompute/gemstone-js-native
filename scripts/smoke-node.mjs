@@ -54,7 +54,11 @@ const constructorError = assertMappedGciError(
 if (!native.isGemStoneNativeError(constructorError)) {
   throw new Error("isGemStoneNativeError should recognize mapped Gci errors.");
 }
-if (native.isGemStoneNativeError(new Error("plain")) || native.isGemStoneNativeError(null)) {
+if (
+  native.isGemStoneNativeError(new Error("plain"))
+  || native.isGemStoneNativeError({ code: "GEMSTONE_GCI_ERROR" })
+  || native.isGemStoneNativeError(null)
+) {
   throw new Error("isGemStoneNativeError should reject non-GemStone errors.");
 }
 assertPatchLoaderPatchesGeneratedFixture();

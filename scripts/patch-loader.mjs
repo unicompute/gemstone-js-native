@@ -13,6 +13,7 @@ const requiredPatchedSnippets = [
   "class Gci extends NativeGci",
   "function mapGciError(error, gci, operation)",
   "function isGemStoneNativeError(error)",
+  "typeof error.operation === 'string'",
   "mapped.code = 'GEMSTONE_GCI_ERROR'",
   "mapped.operation = operation",
   "mapped.gciNumber = info.number",
@@ -131,7 +132,12 @@ function mapGciError(error, gci, operation) {
 }
 
 function isGemStoneNativeError(error) {
-  return Boolean(error && typeof error === 'object' && error.code === 'GEMSTONE_GCI_ERROR')
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && error.code === 'GEMSTONE_GCI_ERROR'
+    && typeof error.operation === 'string'
+  )
 }
 
 module.exports.Gci = Gci

@@ -385,7 +385,12 @@ function mapGciError(error, gci, operation) {
 }
 
 function isGemStoneNativeError(error) {
-  return Boolean(error && typeof error === 'object' && error.code === 'GEMSTONE_GCI_ERROR')
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && error.code === 'GEMSTONE_GCI_ERROR'
+    && typeof error.operation === 'string'
+  )
 }
 
 module.exports.Gci = Gci
