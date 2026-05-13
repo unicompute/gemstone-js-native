@@ -137,6 +137,8 @@ for (const [name, command] of Object.entries(requiredScripts)) {
 
 const declarations = readFileSync("index.d.ts", "utf8");
 const loader = readFileSync("index.js", "utf8");
+const prebuildWorkflow = readFileSync(".github/workflows/prebuild.yml", "utf8");
+const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 try {
   execFileSync(process.execPath, ["scripts/patch-loader.mjs", "--check"], { stdio: "pipe" });
 } catch (error) {
@@ -173,6 +175,45 @@ for (const name of gciMethods) {
     throw new Error(`index.d.ts is missing Gci method declaration: ${name}`);
   }
 }
+assertWorkflow(
+  ".github/workflows/prebuild.yml",
+  prebuildWorkflow,
+  [
+    "name: Prebuild",
+    "workflow_dispatch:",
+    "tags:",
+    "- \"v*\"",
+    "id-token: write",
+    "macos-latest",
+    "ubuntu-latest",
+    "windows-latest",
+    "node-version: 24",
+    "npm run build",
+    "npm run test:node",
+    "npm run pack:check",
+    "npm pack --json",
+    "actions/upload-artifact@v4",
+    "*.node",
+    "*.tgz",
+  ],
+);
+assertWorkflow(
+  ".github/workflows/ci.yml",
+  ciWorkflow,
+  [
+    "name: CI",
+    "branches: [main]",
+    "node-version: 24",
+    "cargo fmt --check",
+    "cargo test",
+    "npm run build",
+    "npm run test:node",
+    "npm run pack:check",
+    "npm pack --json",
+    "actions/upload-artifact@v4",
+    "*.tgz",
+  ],
+);
 
 const nativeBinaries = files.filter((file) => file.endsWith(".node"));
 if (nativeBinaries.length === 0) {
@@ -205,4 +246,12 @@ function normalizeRepositoryUrl(value) {
     .replace(/\.git$/, "")
     .replace(/#readme$/, "")
     .replace(/\/$/, "");
+}
+
+function assertWorkflow(path, contents, snippets) {
+  for (const snippet of snippets) {
+    if (!contents.includes(snippet)) {
+      throw new Error(`${path} is missing required release workflow snippet: ${JSON.stringify(snippet)}.`);
+    }
+  }
 }

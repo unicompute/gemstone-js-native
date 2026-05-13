@@ -23,6 +23,8 @@ npm pack --json
 
 The workflow uploads the `.node` file and npm tarball as GitHub Actions
 artifacts so the package contents can be inspected before publishing.
+`npm run pack:check` verifies that both CI workflows still build, smoke test,
+pack, and upload the expected release artifacts.
 
 ## Artifact Inspection
 

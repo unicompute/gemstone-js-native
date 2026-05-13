@@ -55,7 +55,8 @@ real Stone.
 and package metadata match, verifies the npm entrypoint/export map, verifies
 the npm script contract, verifies `Gci` method declarations, and fails if the
 generated platform `.node` binary is missing, duplicated, misnamed, or not
-referenced by the generated loader.
+referenced by the generated loader. It also checks the CI and prebuild workflow
+snippets that produce and upload release artifacts.
 
 Release notes, npm provenance guidance, the current platform matrix, and the
 native session-threading roadmap live in `docs/releasing.md`.
