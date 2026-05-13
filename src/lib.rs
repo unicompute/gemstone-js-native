@@ -448,6 +448,32 @@ impl ExperimentalGciThreadWorker {
         self.request_i32(GciThreadCommand::Init)
     }
 
+    pub fn encrypt(&self, password: String) -> Result<String> {
+        self.request_result_string(|reply| GciThreadCommand::Encrypt(password, reply))
+    }
+
+    pub fn set_net(
+        &self,
+        stone_name: String,
+        host_username: String,
+        encrypted_host_password: String,
+        gem_service: String,
+    ) -> Result<()> {
+        self.request_unit(|reply| {
+            GciThreadCommand::SetNet(
+                stone_name,
+                host_username,
+                encrypted_host_password,
+                gem_service,
+                reply,
+            )
+        })
+    }
+
+    pub fn login_ex(&self, options: LoginOptions) -> Result<i32> {
+        self.request_i32(|reply| GciThreadCommand::LoginEx(options, reply))
+    }
+
     pub fn library_path(&self) -> Result<String> {
         self.request_string(GciThreadCommand::LibraryPath)
     }
@@ -666,6 +692,7 @@ impl ExperimentalGciThreadWorker {
             performs: performs.into_iter().collect(),
             err_info,
             init_result: 1,
+            login_result: 1,
             logout_result: 1,
             commit_result: true,
             abort_result: true,
@@ -689,6 +716,26 @@ impl ExperimentalGciThreadWorker {
                     match command {
                         GciThreadCommand::Init(reply) => {
                             let _ = reply.send(state.init());
+                        }
+                        GciThreadCommand::Encrypt(password, reply) => {
+                            let _ = reply.send(state.encrypt(password));
+                        }
+                        GciThreadCommand::SetNet(
+                            stone_name,
+                            host_username,
+                            encrypted_host_password,
+                            gem_service,
+                            reply,
+                        ) => {
+                            let _ = reply.send(state.set_net(
+                                stone_name,
+                                host_username,
+                                encrypted_host_password,
+                                gem_service,
+                            ));
+                        }
+                        GciThreadCommand::LoginEx(options, reply) => {
+                            let _ = reply.send(state.login_ex(options));
                         }
                         GciThreadCommand::LibraryPath(reply) => {
                             let _ = reply.send(state.library_path());
@@ -801,6 +848,24 @@ impl ExperimentalGciThreadWorker {
         receiver.recv().map_err(|_| {
             Error::from_reason("Experimental GCI worker thread closed before replying.")
         })
+    }
+
+    fn request_result_string(
+        &self,
+        build_command: impl FnOnce(
+            std::sync::mpsc::Sender<std::result::Result<String, String>>,
+        ) -> GciThreadCommand,
+    ) -> Result<String> {
+        let (reply, receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(build_command(reply))
+            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+        receiver
+            .recv()
+            .map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread closed before replying.")
+            })?
+            .map_err(Error::from_reason)
     }
 
     fn request_unit(
@@ -921,6 +986,7 @@ enum GciThreadState {
         performs: std::collections::BTreeMap<(RawOop, String, Vec<RawOop>), RawOop>,
         err_info: Option<GciErrorInfo>,
         init_result: i32,
+        login_result: i32,
         logout_result: i32,
         commit_result: bool,
         abort_result: bool,
@@ -937,6 +1003,86 @@ impl GciThreadState {
             Self::Live(lib) => unsafe { lib.gci_init().map_err(|error| error.to_string()) },
             #[cfg(test)]
             Self::PathOnly { init_result, .. } => Ok(*init_result),
+        }
+    }
+
+    fn encrypt(&self, password: String) -> std::result::Result<String, String> {
+        match self {
+            Self::Live(lib) => {
+                let password = CString::new(password)
+                    .map_err(|_| "encrypt password contains an interior NUL byte.".to_string())?;
+                let mut buffer = vec![0_i8; GCI_ENCRYPT_BUF_SIZE];
+                unsafe {
+                    lib.gci_encrypt(&password, buffer.as_mut_ptr(), GCI_ENCRYPT_BUF_SIZE as u32)
+                        .map_err(|error| error.to_string())?;
+                    Ok(CStr::from_ptr(buffer.as_ptr())
+                        .to_string_lossy()
+                        .into_owned())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(format!("encrypted:{password}")),
+        }
+    }
+
+    fn set_net(
+        &self,
+        stone_name: String,
+        host_username: String,
+        encrypted_host_password: String,
+        gem_service: String,
+    ) -> std::result::Result<(), String> {
+        match self {
+            Self::Live(lib) => {
+                let stone_name = CString::new(stone_name)
+                    .map_err(|_| "setNet stone name contains an interior NUL byte.".to_string())?;
+                let host_username = CString::new(host_username).map_err(|_| {
+                    "setNet host username contains an interior NUL byte.".to_string()
+                })?;
+                let encrypted_host_password =
+                    CString::new(encrypted_host_password).map_err(|_| {
+                        "setNet encrypted host password contains an interior NUL byte.".to_string()
+                    })?;
+                let gem_service = CString::new(gem_service)
+                    .map_err(|_| "setNet gem service contains an interior NUL byte.".to_string())?;
+                unsafe {
+                    lib.gci_set_net(
+                        &stone_name,
+                        &host_username,
+                        encrypted_host_password.as_ptr(),
+                        &gem_service,
+                    )
+                    .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { .. } => Ok(()),
+        }
+    }
+
+    fn login_ex(&self, options: LoginOptions) -> std::result::Result<i32, String> {
+        match self {
+            Self::Live(lib) => {
+                let username = CString::new(options.username)
+                    .map_err(|_| "loginEx username contains an interior NUL byte.".to_string())?;
+                let password = CString::new(options.password)
+                    .map_err(|_| "loginEx password contains an interior NUL byte.".to_string())?;
+                unsafe {
+                    lib.gci_login_ex(
+                        &username,
+                        &password,
+                        options.flags.unwrap_or(0),
+                        if options.halt_on_error.unwrap_or(false) {
+                            1
+                        } else {
+                            0
+                        },
+                    )
+                    .map_err(|error| error.to_string())
+                }
+            }
+            #[cfg(test)]
+            Self::PathOnly { login_result, .. } => Ok(*login_result),
         }
     }
 
@@ -1417,6 +1563,21 @@ impl GciThreadState {
 #[cfg(feature = "session-thread-spike")]
 enum GciThreadCommand {
     Init(std::sync::mpsc::Sender<std::result::Result<i32, String>>),
+    Encrypt(
+        String,
+        std::sync::mpsc::Sender<std::result::Result<String, String>>,
+    ),
+    SetNet(
+        String,
+        String,
+        String,
+        String,
+        std::sync::mpsc::Sender<std::result::Result<(), String>>,
+    ),
+    LoginEx(
+        LoginOptions,
+        std::sync::mpsc::Sender<std::result::Result<i32, String>>,
+    ),
     LibraryPath(std::sync::mpsc::Sender<String>),
     FetchSize(
         RawOop,
@@ -1869,6 +2030,29 @@ mod tests {
         .unwrap();
 
         assert_eq!(worker.init().unwrap(), 1);
+        assert_eq!(
+            worker.encrypt("secret".to_string()).unwrap(),
+            "encrypted:secret"
+        );
+        worker
+            .set_net(
+                "stone".to_string(),
+                "host-user".to_string(),
+                "encrypted-host-password".to_string(),
+                "gemnetobject".to_string(),
+            )
+            .unwrap();
+        assert_eq!(
+            worker
+                .login_ex(LoginOptions {
+                    username: "DataCurator".to_string(),
+                    password: "swordfish".to_string(),
+                    flags: Some(0),
+                    halt_on_error: Some(false),
+                })
+                .unwrap(),
+            1
+        );
         assert_eq!(worker.library_path().unwrap(), path.display().to_string());
         assert_eq!(worker.fetch_size(OOP_NIL).unwrap(), 0);
         assert_eq!(worker.fetch_size(string_oop).unwrap(), 12);
