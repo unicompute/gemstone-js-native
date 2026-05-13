@@ -27,7 +27,8 @@ artifacts so the package contents can be inspected before publishing.
 ## Publish Checklist
 
 1. Verify `package.json` and `Cargo.toml` version, license, homepage,
-   repository, and description match.
+   repository, and description match, and that `package.json` has
+   `publishConfig.provenance`.
 2. Run `npm run pack:check` locally after `npm run build`.
 3. Review the workflow tarball artifact contents.
 4. Publish with provenance:

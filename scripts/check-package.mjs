@@ -50,6 +50,9 @@ if (packageJson.homepage !== `${cargoHomepage}#readme`) {
 if (normalizeRepositoryUrl(packageJson.repository?.url) !== normalizeRepositoryUrl(cargoRepository)) {
   throw new Error(`package.json repository ${packageJson.repository?.url} does not match Cargo.toml repository ${cargoRepository}.`);
 }
+if (packageJson.publishConfig?.provenance !== true) {
+  throw new Error("package.json publishConfig.provenance must be true.");
+}
 
 const required = [
   "LICENSE",
