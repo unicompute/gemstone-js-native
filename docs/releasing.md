@@ -41,6 +41,10 @@ the manifest as an artifact target.
 `npm run public-surface:check` verifies that the generated loader, TypeScript
 declarations, loader patcher, and smoke checks agree on exported helpers and
 `Gci` methods before publishing.
+`npm run installed:check` packs and extracts the tarball, verifies package
+metadata, the single generated `.node` binary, patched loader snippets, and then
+runs the packaged public-surface, loader, and Node smoke checks from the
+extracted artifact.
 `npm run verify` also runs `npm run fmt:check`, which wraps `cargo fmt --check`,
 so local release verification catches Rust formatting drift before CI.
 
@@ -55,6 +59,7 @@ node scripts/verify-checksums.mjs SHA256SUMS.txt
 tar -tzf gemstone-js-native-*.tgz
 shasum -a 256 gemstone-js-native-*.tgz index.*.node
 shasum -a 256 -c SHA256SUMS.txt
+npm run installed:check
 ```
 
 Check that the tarball contains `index.js`, `index.d.ts`, `README.md`,
@@ -64,9 +69,10 @@ Check that the tarball contains `index.js`, `index.d.ts`, `README.md`,
 Release artifact basenames used in `SHA256SUMS.txt` must use portable ASCII
 letters, digits, `.`, `_`, `@`, `+`, and `-`, with no path separators or
 whitespace.
-Install the `.tgz` into a disposable project and run `node -e
-"const n=require('@gemstone-js/native'); console.log(typeof n.Gci)"` to verify
-the loader resolves the packed binary.
+The extracted-artifact check verifies the same loader resolution path without
+needing a registry install. For an extra post-publish check, install the `.tgz`
+into a disposable project and run `node -e
+"const n=require('@gemstone-js/native'); console.log(typeof n.Gci)"`.
 
 ## Provenance Verification
 

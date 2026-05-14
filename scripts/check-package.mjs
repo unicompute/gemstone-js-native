@@ -82,6 +82,7 @@ const required = [
   "package.json",
   "scripts/check-package.mjs",
   "scripts/check-checksums.mjs",
+  "scripts/check-installed-package.mjs",
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
@@ -106,6 +107,7 @@ const requiredFileEntries = [
   "LICENSE",
   "scripts/check-package.mjs",
   "scripts/check-checksums.mjs",
+  "scripts/check-installed-package.mjs",
   "scripts/live-smoke-node.mjs",
   "scripts/patch-loader.mjs",
   "scripts/public-surface.mjs",
@@ -124,12 +126,13 @@ const requiredScripts = {
   "test:live": "node scripts/live-smoke-node.mjs",
   "test:node": "node scripts/smoke-node.mjs",
   "pack:check": "node scripts/check-package.mjs",
+  "installed:check": "node scripts/check-installed-package.mjs",
   "loader:check": "node scripts/patch-loader.mjs --check",
   "public-surface:check": "node scripts/check-public-surface.mjs",
   "session-thread:check": "node scripts/check-session-thread-spike.mjs",
   "checksum:check": "node scripts/check-checksums.mjs",
   "checksum:verify": "node scripts/verify-checksums.mjs",
-  verify: "npm run fmt:check && cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run public-surface:check && npm run test:node && npm run loader:check && npm run pack:check",
+  verify: "npm run fmt:check && cargo test && cargo test --features session-thread-spike && npm run session-thread:check && npm run checksum:check && npm run public-surface:check && npm run test:node && npm run loader:check && npm run pack:check && npm run installed:check",
 };
 
 for (const path of required) {
@@ -178,6 +181,7 @@ for (const snippet of ["category: string", "context: string", "exceptionObj: str
 const nodeSmoke = readFileSync("scripts/smoke-node.mjs", "utf8");
 const publicSurfaceCheck = readFileSync("scripts/check-public-surface.mjs", "utf8");
 const sessionThreadCheck = readFileSync("scripts/check-session-thread-spike.mjs", "utf8");
+const installedPackageCheck = readFileSync("scripts/check-installed-package.mjs", "utf8");
 const checksumCheck = readFileSync("scripts/check-checksums.mjs", "utf8");
 const checksumWriter = readFileSync("scripts/write-checksums.mjs", "utf8");
 const checksumVerifier = readFileSync("scripts/verify-checksums.mjs", "utf8");
@@ -198,6 +202,15 @@ if (!sessionThreadCheck.includes("ExperimentalGciThreadWorker")) {
 }
 if (!sessionThreadCheck.includes("GciThreadCommand")) {
   throw new Error("scripts/check-session-thread-spike.mjs must assert GciThreadCommand coverage.");
+}
+if (
+  !installedPackageCheck.includes("--pack-destination")
+  || !installedPackageCheck.includes("--strip-components")
+  || !installedPackageCheck.includes("assertNativeBinary")
+  || !installedPackageCheck.includes("scripts/smoke-node.mjs")
+  || !installedPackageCheck.includes("GEMSTONE_GCI_ERROR")
+) {
+  throw new Error("scripts/check-installed-package.mjs must pack, extract, and smoke the installed native artifact.");
 }
 if (!checksumCheck.includes("write-checksums.mjs")) {
   throw new Error("scripts/check-checksums.mjs must exercise write-checksums.mjs.");
@@ -330,6 +343,7 @@ assertSnippets(
     "dist.integrity",
     "dist.signatures",
     "shasum -a 256",
+    "npm run installed:check",
     "SHA256SUMS.txt",
     "node scripts/verify-checksums.mjs SHA256SUMS.txt",
   ],

@@ -57,6 +57,10 @@ The writer also excludes
 `SHA256SUMS.txt` itself and directories from artifact suffix matches.
 `npm run public-surface:check` verifies that `index.js`, `index.d.ts`, the
 loader patcher, and smoke checks agree on exported helpers and `Gci` methods.
+`npm run installed:check` packs and extracts the npm tarball, verifies package
+metadata, the generated `.node` binary, loader references, patched error
+mapping, and then runs the packaged public-surface, loader, and Node smoke
+checks from the extracted artifact.
 
 Building the Node addon itself uses napi-rs:
 
@@ -86,7 +90,9 @@ checks the public surface guard, and fails if the generated platform `.node`
 binary is missing, duplicated, misnamed, or not referenced by the generated
 loader. It also checks the CI and prebuild workflow snippets that produce,
 verify, and upload release artifacts, and guards the release docs for artifact
-checksum, registry signature, and provenance verification steps.
+checksum, registry signature, and provenance verification steps. `verify` then
+runs the extracted-artifact smoke so the packed loader and native binary are
+tested from the same file layout users install.
 
 Release notes, npm provenance guidance, and the current platform matrix live in
 `docs/releasing.md`. Rust-side error mapping and dedicated session-threading
