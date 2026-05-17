@@ -200,8 +200,16 @@ function assertPatchedLoader(value) {
 function patchOrCheckDeclarations(path, checkOnly) {
   if (!path) return;
   const declarations = readFileSync(path, "utf8");
+  let patched = normalizeDeclarationTypes(declarations);
+  if (checkOnly && patched !== declarations) {
+    throw new Error(`${path} contains generated declaration types that need normalization. Run node scripts/patch-loader.mjs after build.`);
+  }
   if (declarations.includes("GemStoneNativeError") && declarations.includes("GciSessionWorker")) {
-    assertPatchedDeclarations(declarations);
+    assertPatchedDeclarations(patched);
+    if (patched !== declarations) {
+      writeFileSync(path, patched);
+      console.log(`Patched ${path} generated declaration types.`);
+    }
     return;
   }
   if (checkOnly) {
@@ -209,10 +217,9 @@ function patchOrCheckDeclarations(path, checkOnly) {
   }
 
   const marker = "export interface SymDictLookup";
-  if (!declarations.includes(marker)) {
+  if (!patched.includes(marker)) {
     throw new Error(`Cannot patch ${path}: SymDictLookup declaration was not found.`);
   }
-  let patched = declarations;
   if (!patched.includes("GemStoneNativeError")) {
     patched = patched.replace(marker, `${errorDeclarationBlock()}${marker}`);
   }
@@ -222,6 +229,13 @@ function patchOrCheckDeclarations(path, checkOnly) {
   assertPatchedDeclarations(patched);
   writeFileSync(path, patched);
   console.log(`Patched ${path} with GemStone native error and session worker declarations.`);
+}
+
+function normalizeDeclarationTypes(value) {
+  return value.replaceAll(
+    "fetchBytes(oop: string, start: number, count: number): Buffer",
+    "fetchBytes(oop: string, start: number, count: number): Uint8Array",
+  );
 }
 
 function assertPatchedDeclarations(value) {
