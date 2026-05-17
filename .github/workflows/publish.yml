@@ -23,6 +23,7 @@ jobs:
       - run: npm run build
       - run: npm run verify
       - run: npm run release:check
-      - run: npm publish --access public --tag alpha --provenance
+      - run: npm pack --json
+      - run: npm publish gemstone-js-native-*.tgz --access public --tag alpha --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
