@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 
-const source = readFileSync("src/lib.rs", "utf8");
+const source = readText("src/lib.rs");
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
-const readme = readFileSync("README.md", "utf8");
-const architecture = readFileSync("docs/native-architecture.md", "utf8");
+const readme = readText("README.md");
+const architecture = readText("docs/native-architecture.md");
 
 const enumBody = between(source, "enum GciThreadCommand", "\n}\n\n#[cfg(all(feature = \"session-thread-spike\", test))]");
 
@@ -117,6 +117,10 @@ function assertIncludes(value, snippet, label) {
   if (!value.includes(snippet)) {
     throw new Error(`Missing ${label}: ${snippet}`);
   }
+}
+
+function readText(path) {
+  return readFileSync(path, "utf8").replace(/\r\n?/g, "\n");
 }
 
 function between(value, start, end) {
