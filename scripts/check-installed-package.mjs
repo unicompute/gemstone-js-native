@@ -7,9 +7,10 @@ import { join } from "node:path";
 const tempRoot = mkdtempSync(join(tmpdir(), "gemstone-js-native-installed-"));
 const cache = join(tempRoot, "npm-cache");
 const packageRoot = join(tempRoot, "package");
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 try {
-  const packOutput = execFileSync("npm", ["pack", "--json", "--pack-destination", tempRoot], {
+  const packOutput = execFileSync(npmCommand, ["pack", "--json", "--pack-destination", tempRoot], {
     encoding: "utf8",
     env: { ...process.env, npm_config_cache: cache },
   });

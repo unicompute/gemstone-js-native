@@ -12,9 +12,10 @@ const cache = join(tempRoot, "npm-cache");
 const checksumWriter = join(scriptDir, "write-checksums.mjs");
 const checksumVerifier = join(scriptDir, "verify-checksums.mjs");
 const prebuildChecker = join(scriptDir, "check-prebuild-artifacts.mjs");
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 try {
-  const packOutput = execFileSync("npm", ["pack", "--json", "--pack-destination", tempRoot], {
+  const packOutput = execFileSync(npmCommand, ["pack", "--json", "--pack-destination", tempRoot], {
     cwd: packageRoot,
     encoding: "utf8",
     env: { ...process.env, npm_config_cache: cache },

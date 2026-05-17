@@ -5,10 +5,11 @@ import { join } from "node:path";
 import { gciMethods, publicExports } from "./public-surface.mjs";
 
 const cache = mkdtempSync(join(tmpdir(), "gemstone-js-native-npm-cache-"));
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 let pack;
 try {
-  const output = execFileSync("npm", ["pack", "--dry-run", "--json"], {
+  const output = execFileSync(npmCommand, ["pack", "--dry-run", "--json"], {
     encoding: "utf8",
     env: { ...process.env, npm_config_cache: cache },
   });
