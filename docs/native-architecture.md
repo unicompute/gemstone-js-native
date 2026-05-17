@@ -80,6 +80,17 @@ the feature test uses synthetic auth/lifecycle, readback, execution, perform,
 error, session id, float, dictionary, transaction, and allocation data to verify
 the queue and reply path from a different OS thread without requiring a live
 Stone or a loadable GCI library.
+`GciThreadDiagnostics` reports the worker thread id and processed request count
+so future smoke tests can prove calls are running through the queue instead of
+on the caller thread. The spike also includes an explicit idempotent
+`shutdown()` path that sends the shutdown command, joins the worker thread, and
+routes later calls through the closed-thread error path. Worker request helpers
+now attach the queued operation name to queue failures, reply-channel failures,
+and operation failures, so a closed worker reports the affected call such as
+`library_path` instead of a generic channel error. Live worker operation
+failures also read same-thread GciErr details on the worker before returning the
+failure across the queue, preserving the operation name, error number, fatal
+flag, message, and reason for the later N-API error-mapping work. The cloned request handles path queues concurrent callers onto the same worker thread while only the owning worker handle can join the thread during shutdown.
 `npm run session-thread:check` statically guards this spike by checking that
 each queued operation has an `ExperimentalGciThreadWorker` wrapper method, a
 `GciThreadCommand` variant, a dispatch arm, a state implementation, and matching
@@ -88,3 +99,20 @@ docs/package metadata.
 This deliberately avoids changing the JavaScript API. It is only a native
 architecture slice that validates the queue/thread/drop shape before moving
 the remaining session-bound operations onto the worker.
+
+### JavaScript Session Worker
+
+`GciSessionWorker` is the first JavaScript-facing production wrapper around the
+raw synchronous binding. It creates one Node worker thread, constructs one
+`Gci` instance on that thread, and exposes promise-returning methods for the
+same low-level GCI operations. Messages sent to the worker are processed in
+order by the worker thread, so concurrent JavaScript callers do not run GCI on
+the event-loop thread. `close()` sends a queued close request, attempts logout
+on the worker, and terminates the worker thread. This keeps the raw `Gci`
+surface intact while giving `gemstone-js` a migration path toward an async
+session-thread runtime.
+
+The current wrapper is still intentionally thin: it serializes one call at a
+time and preserves mapped native error fields, but it does not yet expose
+native-side cancellation or fatal-session state. Those should be added before
+making the worker the default runtime path.

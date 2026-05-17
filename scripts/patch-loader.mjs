@@ -14,17 +14,23 @@ const requiredPatchedSnippets = [
   "class Gci extends NativeGci",
   "function mapGciError(error, gci, operation)",
   "function isGemStoneNativeError(error)",
+  "require('./session-worker.js')",
   "typeof error.operation === 'string'",
   "mapped.code = 'GEMSTONE_GCI_ERROR'",
   "mapped.operation = operation",
   "mapped.gciNumber = info.number",
   "mapped.category = info.category",
   "module.exports.Gci = Gci",
+  "module.exports.GciSessionWorker = GciSessionWorker",
+  "module.exports.createGciSessionWorker = createGciSessionWorker",
   "module.exports.isGemStoneNativeError = isGemStoneNativeError",
 ];
 const requiredDeclarationSnippets = [
   "export interface GemStoneNativeError extends Error",
   "export declare function isGemStoneNativeError(error: unknown): error is GemStoneNativeError",
+  "export declare class GciSessionWorker",
+  "export declare function createGciSessionWorker",
+  "fetchBytes(oop: string, start: number, count: number): Promise<Uint8Array>",
   "category: string",
   "context: string",
   "exceptionObj: string",
@@ -160,7 +166,11 @@ function isGemStoneNativeError(error) {
   )
 }
 
+const { GciSessionWorker, createGciSessionWorker } = require('./session-worker.js')
+
 module.exports.Gci = Gci
+module.exports.GciSessionWorker = GciSessionWorker
+module.exports.createGciSessionWorker = createGciSessionWorker
 module.exports.isGemStoneNativeError = isGemStoneNativeError
 module.exports.smallintToOop = smallintToOop
 module.exports.oopToSmallint = oopToSmallint
@@ -190,22 +200,28 @@ function assertPatchedLoader(value) {
 function patchOrCheckDeclarations(path, checkOnly) {
   if (!path) return;
   const declarations = readFileSync(path, "utf8");
-  if (declarations.includes("GemStoneNativeError")) {
+  if (declarations.includes("GemStoneNativeError") && declarations.includes("GciSessionWorker")) {
     assertPatchedDeclarations(declarations);
     return;
   }
   if (checkOnly) {
-    throw new Error(`${path} is missing GemStone native error declarations. Run node scripts/patch-loader.mjs after build.`);
+    throw new Error(`${path} is missing GemStone native error or session worker declarations. Run node scripts/patch-loader.mjs after build.`);
   }
 
   const marker = "export interface SymDictLookup";
   if (!declarations.includes(marker)) {
     throw new Error(`Cannot patch ${path}: SymDictLookup declaration was not found.`);
   }
-  const patched = declarations.replace(marker, `${errorDeclarationBlock()}${marker}`);
+  let patched = declarations;
+  if (!patched.includes("GemStoneNativeError")) {
+    patched = patched.replace(marker, `${errorDeclarationBlock()}${marker}`);
+  }
+  if (!patched.includes("GciSessionWorker")) {
+    patched = patched.replace("export declare function smallintToOop", `${sessionWorkerDeclarationBlock()}export declare function smallintToOop`);
+  }
   assertPatchedDeclarations(patched);
   writeFileSync(path, patched);
-  console.log(`Patched ${path} with GemStone native error declarations.`);
+  console.log(`Patched ${path} with GemStone native error and session worker declarations.`);
 }
 
 function assertPatchedDeclarations(value) {
@@ -232,6 +248,48 @@ function errorDeclarationBlock() {
   info?: GciErrorInfo
 }
 export declare function isGemStoneNativeError(error: unknown): error is GemStoneNativeError
+`;
+}
+
+function sessionWorkerDeclarationBlock() {
+  return `export declare class GciSessionWorker {
+  constructor(libPath?: string | undefined | null)
+  call(method: string, args?: Array<unknown>): Promise<unknown>
+  close(): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
+  init(libPath?: string | undefined | null): Promise<number>
+  libraryPath(): Promise<string>
+  encrypt(password: string): Promise<string>
+  setNet(stoneName: string, hostUsername: string, encryptedHostPassword: string, gemService: string): Promise<void>
+  loginEx(options: LoginOptions): Promise<number>
+  logout(): Promise<number>
+  commit(): Promise<boolean>
+  abort(): Promise<boolean>
+  err(): Promise<GciErrorInfo | null>
+  executeStr(source: string, receiver?: string | undefined | null): Promise<string>
+  perform(receiver: string, selector: string, args?: Array<string> | undefined | null): Promise<string>
+  newString(value: string): Promise<string>
+  newSymbol(value: string): Promise<string>
+  newOop(classOop: string): Promise<string>
+  resolveSymbol(name: string, symbolList?: string | undefined | null): Promise<string>
+  fetchClass(oop: string): Promise<string>
+  fetchSize(oop: string): Promise<number>
+  fetchBytes(oop: string, start: number, count: number): Promise<Uint8Array>
+  getSessionId(): Promise<number>
+  setSessionId(sessionId: number): Promise<void>
+  needsCommit(): Promise<boolean>
+  inTransaction(): Promise<boolean>
+  fltToOop(value: number): Promise<string>
+  oopToFlt(oop: string): Promise<number>
+  symDictAt(dict: string, key: string): Promise<SymDictLookup>
+  symDictAtPut(dict: string, key: string, value: string): Promise<void>
+  symDictAtObjPut(dict: string, key: string, value: string): Promise<void>
+  strKeyValueDictAt(dict: string, key: string): Promise<string>
+  strKeyValueDictAtPut(dict: string, key: string, value: string): Promise<void>
+  addOopToExportSet(oop: string): Promise<void>
+  removeOopFromExportSet(oop: string): Promise<void>
+}
+export declare function createGciSessionWorker(libPath?: string | undefined | null): GciSessionWorker
 `;
 }
 

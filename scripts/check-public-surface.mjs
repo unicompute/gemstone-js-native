@@ -12,8 +12,8 @@ assertIncludes(smokeNode, "from \"./public-surface.mjs\"", "smoke-node public su
 
 for (const name of publicExports) {
   assertIncludes(loader, `module.exports.${name}`, `loader export ${name}`);
-  if (name === "Gci") {
-    assertIncludes(declarations, "export declare class Gci", "Gci class declaration");
+  if (name === "Gci" || name === "GciSessionWorker") {
+    assertIncludes(declarations, `export declare class ${name}`, `${name} class declaration`);
   } else {
     assertIncludes(declarations, `export declare function ${name}(`, `${name} function declaration`);
   }
@@ -28,6 +28,8 @@ for (const name of gciMethods) {
 assertIncludes(declarations, "interface GemStoneNativeError", "GemStoneNativeError declaration");
 assertIncludes(loader, "function isGemStoneNativeError(error)", "isGemStoneNativeError implementation");
 assertIncludes(loader, "class Gci extends NativeGci", "mapped Gci wrapper class");
+assertIncludes(loader, "require('./session-worker.js')", "session worker loader import");
+assertIncludes(declarations, "createGciSessionWorker", "session worker factory declaration");
 
 console.log(`Public surface check passed: ${publicExports.length} exports, ${gciMethods.length} Gci methods.`);
 

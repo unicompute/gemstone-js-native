@@ -27,12 +27,16 @@ try {
 
   const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
   assertPackageMetadata(packageJson, pack);
+  assertSessionWorkerFiles(packageRoot);
   const nativeBinary = assertNativeBinary(packageRoot);
   assertLoaderReferencesNativeBinary(packageRoot, nativeBinary);
 
   for (const args of [
     ["scripts/check-public-surface.mjs"],
     ["scripts/patch-loader.mjs", "--check"],
+    ["scripts/verify-provenance-metadata.mjs", "--self-test"],
+    ["scripts/check-release-artifacts.mjs"],
+    ["scripts/check-live-smoke.mjs"],
     ["scripts/smoke-node.mjs"],
   ]) {
     execFileSync(process.execPath, args, {
@@ -80,6 +84,14 @@ function assertNativeBinary(root) {
   return binary;
 }
 
+function assertSessionWorkerFiles(root) {
+  for (const file of ["session-worker.js", "session-worker-thread.js"]) {
+    if (!existsSync(join(root, file))) {
+      throw new Error(`Installed package is missing ${file}.`);
+    }
+  }
+}
+
 function assertLoaderReferencesNativeBinary(root, nativeBinary) {
   const loader = readFileSync(join(root, "index.js"), "utf8");
   if (!loader.includes(`'${nativeBinary}'`) && !loader.includes(JSON.stringify(nativeBinary))) {
@@ -89,7 +101,9 @@ function assertLoaderReferencesNativeBinary(root, nativeBinary) {
     "GEMSTONE_GCI_ERROR",
     "class Gci extends NativeGci",
     "function isGemStoneNativeError(error)",
+    "require('./session-worker.js')",
     "module.exports.isGemStoneNativeError = isGemStoneNativeError",
+    "module.exports.createGciSessionWorker = createGciSessionWorker",
   ]) {
     if (!loader.includes(snippet)) {
       throw new Error(`Installed loader is missing patched error-mapping snippet: ${snippet}`);

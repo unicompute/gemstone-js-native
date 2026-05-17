@@ -42,9 +42,30 @@ const operations = [
 ];
 
 assertIncludes(source, "pub struct ExperimentalGciThreadWorker", "worker struct");
+assertIncludes(source, "impl Clone for ExperimentalGciThreadWorker", "worker cloneable request handle");
+assertIncludes(source, "pub struct GciThreadDiagnostics", "worker diagnostics struct");
+assertIncludes(source, "pub fn diagnostics(&self)", "worker diagnostics method");
+assertIncludes(source, "pub fn shutdown(&mut self)", "worker explicit shutdown method");
+assertIncludes(source, "fn join_worker_thread(&mut self)", "worker join helper");
+assertIncludes(source, "fn request_worker_result", "worker result request helper");
+assertIncludes(source, "fn request_worker_value", "worker value request helper");
+assertIncludes(source, "fn worker_queue_error", "worker queue error helper");
+assertIncludes(source, "fn worker_reply_error", "worker reply error helper");
+assertIncludes(source, "fn worker_operation_error", "worker operation error helper");
+assertIncludes(source, "fn live_worker_error", "worker live GciErr capture helper");
+assertIncludes(source, "fn capture_worker_gci_error", "worker same-thread GciErr helper");
+assertIncludes(source, "fn format_worker_gci_error", "worker formatted GciErr helper");
+assertIncludes(source, "operation {operation} failed", "worker operation-aware error text");
+assertIncludes(source, "GciErr number=", "worker GciErr detail text");
+assertIncludes(source, "worker_gci_error_formatter_includes_same_thread_error_details", "worker GciErr formatter test");
+assertIncludes(source, "experimental_worker_cloned_handles_queue_on_one_thread", "worker cloned-handle queue test");
+assertIncludes(source, "contains(\"library_path\")", "worker closed-error operation-name test");
+assertIncludes(source, "requests_processed", "worker processed request counter");
 assertIncludes(source, "enum GciThreadState", "worker state enum");
 assertIncludes(enumBody, "Shutdown", "worker shutdown command");
+assertIncludes(enumBody, "Diagnostics", "worker diagnostics command");
 assertIncludes(source, "GciThreadCommand::Shutdown", "worker shutdown send/drop path");
+assertIncludes(source, "GciThreadCommand::Diagnostics", "worker diagnostics dispatch path");
 
 for (const operation of operations) {
   assertIncludes(source, operation.method, `${operation.name} public worker method`);
@@ -69,13 +90,23 @@ for (const snippet of [
   "npm run session-thread:check",
   "session-thread-spike",
   "ExperimentalGciThreadWorker",
+  "GciThreadDiagnostics",
+  "shutdown",
+  "queued operation name",
+  "same-thread GciErr",
+  "cloned request handles",
 ]) {
   assertIncludes(readme, snippet, `README session-thread snippet ${snippet}`);
 }
 for (const snippet of [
   "ExperimentalGciThreadWorker",
+  "diagnostics",
+  "shutdown",
   "session-thread:check",
   "allocation/symbol-resolution",
+  "queued operation name",
+  "same-thread GciErr",
+  "cloned request handles",
 ]) {
   assertIncludes(architecture, snippet, `native architecture session-thread snippet ${snippet}`);
 }

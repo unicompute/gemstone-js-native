@@ -412,7 +412,11 @@ function isGemStoneNativeError(error) {
   )
 }
 
+const { GciSessionWorker, createGciSessionWorker } = require('./session-worker.js')
+
 module.exports.Gci = Gci
+module.exports.GciSessionWorker = GciSessionWorker
+module.exports.createGciSessionWorker = createGciSessionWorker
 module.exports.isGemStoneNativeError = isGemStoneNativeError
 module.exports.smallintToOop = smallintToOop
 module.exports.oopToSmallint = oopToSmallint

@@ -36,6 +36,13 @@ pub struct SymDictLookup {
     pub assoc: String,
 }
 
+#[cfg(feature = "session-thread-spike")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GciThreadDiagnostics {
+    pub thread_id_debug: String,
+    pub requests_processed: u64,
+}
+
 #[napi]
 pub struct Gci {
     lib: GciLibrary,
@@ -439,17 +446,29 @@ pub struct ExperimentalGciThreadWorker {
 }
 
 #[cfg(feature = "session-thread-spike")]
+impl Clone for ExperimentalGciThreadWorker {
+    fn clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            join: None,
+        }
+    }
+}
+
+#[cfg(feature = "session-thread-spike")]
 impl ExperimentalGciThreadWorker {
     pub fn start(lib: GciLibrary) -> Result<Self> {
         Self::spawn(GciThreadState::Live(lib))
     }
 
     pub fn init(&self) -> Result<i32> {
-        self.request_i32(GciThreadCommand::Init)
+        self.request_worker_result("init", GciThreadCommand::Init)
     }
 
     pub fn encrypt(&self, password: String) -> Result<String> {
-        self.request_result_string(|reply| GciThreadCommand::Encrypt(password, reply))
+        self.request_worker_result("encrypt", |reply| {
+            GciThreadCommand::Encrypt(password, reply)
+        })
     }
 
     pub fn set_net(
@@ -459,7 +478,7 @@ impl ExperimentalGciThreadWorker {
         encrypted_host_password: String,
         gem_service: String,
     ) -> Result<()> {
-        self.request_unit(|reply| {
+        self.request_worker_result("set_net", |reply| {
             GciThreadCommand::SetNet(
                 stone_name,
                 host_username,
@@ -471,63 +490,37 @@ impl ExperimentalGciThreadWorker {
     }
 
     pub fn login_ex(&self, options: LoginOptions) -> Result<i32> {
-        self.request_i32(|reply| GciThreadCommand::LoginEx(options, reply))
+        self.request_worker_result("login_ex", |reply| {
+            GciThreadCommand::LoginEx(options, reply)
+        })
     }
 
     pub fn library_path(&self) -> Result<String> {
-        self.request_string(GciThreadCommand::LibraryPath)
+        self.request_worker_value("library_path", GciThreadCommand::LibraryPath)
     }
 
     pub fn fetch_size(&self, oop: RawOop) -> Result<i64> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(GciThreadCommand::FetchSize(oop, reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+        self.request_worker_result("fetch_size", |reply| {
+            GciThreadCommand::FetchSize(oop, reply)
+        })
     }
 
     pub fn fetch_class(&self, oop: RawOop) -> Result<RawOop> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(GciThreadCommand::FetchClass(oop, reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+        self.request_worker_result("fetch_class", |reply| {
+            GciThreadCommand::FetchClass(oop, reply)
+        })
     }
 
     pub fn fetch_bytes(&self, oop: RawOop, start: i64, count: i64) -> Result<Vec<u8>> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(GciThreadCommand::FetchBytes(oop, start, count, reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+        self.request_worker_result("fetch_bytes", |reply| {
+            GciThreadCommand::FetchBytes(oop, start, count, reply)
+        })
     }
 
     pub fn execute_str(&self, source: String, receiver_oop: RawOop) -> Result<RawOop> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(GciThreadCommand::ExecuteStr(source, receiver_oop, reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+        self.request_worker_result("execute_str", |reply| {
+            GciThreadCommand::ExecuteStr(source, receiver_oop, reply)
+        })
     }
 
     pub fn perform(
@@ -536,105 +529,91 @@ impl ExperimentalGciThreadWorker {
         selector: String,
         args: Vec<RawOop>,
     ) -> Result<RawOop> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(GciThreadCommand::Perform(
-                receiver_oop,
-                selector,
-                args,
-                reply,
-            ))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+        self.request_worker_result("perform", |reply| {
+            GciThreadCommand::Perform(receiver_oop, selector, args, reply)
+        })
     }
 
     pub fn err(&self) -> Result<Option<GciErrorInfo>> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(GciThreadCommand::Err(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+        self.request_worker_result("err", GciThreadCommand::Err)
     }
 
     pub fn logout(&self) -> Result<i32> {
-        self.request_i32(GciThreadCommand::Logout)
+        self.request_worker_result("logout", GciThreadCommand::Logout)
     }
 
     pub fn add_oop_to_export_set(&self, oop: RawOop) -> Result<()> {
-        self.request_unit(|reply| GciThreadCommand::AddOopToExportSet(oop, reply))
+        self.request_worker_result("add_oop_to_export_set", |reply| {
+            GciThreadCommand::AddOopToExportSet(oop, reply)
+        })
     }
 
     pub fn remove_oop_from_export_set(&self, oop: RawOop) -> Result<()> {
-        self.request_unit(|reply| GciThreadCommand::RemoveOopFromExportSet(oop, reply))
+        self.request_worker_result("remove_oop_from_export_set", |reply| {
+            GciThreadCommand::RemoveOopFromExportSet(oop, reply)
+        })
     }
 
     pub fn commit(&self) -> Result<bool> {
-        self.request_bool(GciThreadCommand::Commit)
+        self.request_worker_result("commit", GciThreadCommand::Commit)
     }
 
     pub fn abort(&self) -> Result<bool> {
-        self.request_bool(GciThreadCommand::Abort)
+        self.request_worker_result("abort", GciThreadCommand::Abort)
     }
 
     pub fn needs_commit(&self) -> Result<bool> {
-        self.request_bool(GciThreadCommand::NeedsCommit)
+        self.request_worker_result("needs_commit", GciThreadCommand::NeedsCommit)
     }
 
     pub fn in_transaction(&self) -> Result<bool> {
-        self.request_bool(GciThreadCommand::InTransaction)
+        self.request_worker_result("in_transaction", GciThreadCommand::InTransaction)
     }
 
     pub fn get_session_id(&self) -> Result<i32> {
-        self.request_i32(GciThreadCommand::GetSessionId)
+        self.request_worker_result("get_session_id", GciThreadCommand::GetSessionId)
     }
 
     pub fn set_session_id(&self, session_id: i32) -> Result<()> {
         let session_id = validate_session_id(session_id)?;
-        self.request_unit(|reply| GciThreadCommand::SetSessionId(session_id, reply))
+        self.request_worker_result("set_session_id", |reply| {
+            GciThreadCommand::SetSessionId(session_id, reply)
+        })
     }
 
     pub fn flt_to_oop(&self, value: f64) -> Result<RawOop> {
         let value = validate_finite_float(value)?;
-        self.request_raw(|reply| GciThreadCommand::FltToOop(value, reply))
+        self.request_worker_result("flt_to_oop", |reply| {
+            GciThreadCommand::FltToOop(value, reply)
+        })
     }
 
     pub fn oop_to_flt(&self, oop: RawOop) -> Result<f64> {
-        self.request_f64(|reply| GciThreadCommand::OopToFlt(oop, reply))
+        self.request_worker_result("oop_to_flt", |reply| GciThreadCommand::OopToFlt(oop, reply))
     }
 
     pub fn sym_dict_at(&self, dict: RawOop, key: String) -> Result<SymDictLookup> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(GciThreadCommand::SymDictAt(dict, key, reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+        self.request_worker_result("sym_dict_at", |reply| {
+            GciThreadCommand::SymDictAt(dict, key, reply)
+        })
     }
 
     pub fn sym_dict_at_put(&self, dict: RawOop, key: String, value: RawOop) -> Result<()> {
-        self.request_unit(|reply| GciThreadCommand::SymDictAtPut(dict, key, value, reply))
+        self.request_worker_result("sym_dict_at_put", |reply| {
+            GciThreadCommand::SymDictAtPut(dict, key, value, reply)
+        })
     }
 
     pub fn sym_dict_at_obj_put(&self, dict: RawOop, key: RawOop, value: RawOop) -> Result<()> {
-        self.request_unit(|reply| GciThreadCommand::SymDictAtObjPut(dict, key, value, reply))
+        self.request_worker_result("sym_dict_at_obj_put", |reply| {
+            GciThreadCommand::SymDictAtObjPut(dict, key, value, reply)
+        })
     }
 
     pub fn str_key_value_dict_at(&self, dict: RawOop, key: String) -> Result<RawOop> {
-        self.request_raw(|reply| GciThreadCommand::StrKeyValueDictAt(dict, key, reply))
+        self.request_worker_result("str_key_value_dict_at", |reply| {
+            GciThreadCommand::StrKeyValueDictAt(dict, key, reply)
+        })
     }
 
     pub fn str_key_value_dict_at_put(
@@ -643,23 +622,45 @@ impl ExperimentalGciThreadWorker {
         key: String,
         value: RawOop,
     ) -> Result<()> {
-        self.request_unit(|reply| GciThreadCommand::StrKeyValueDictAtPut(dict, key, value, reply))
+        self.request_worker_result("str_key_value_dict_at_put", |reply| {
+            GciThreadCommand::StrKeyValueDictAtPut(dict, key, value, reply)
+        })
     }
 
     pub fn new_string(&self, value: String) -> Result<RawOop> {
-        self.request_raw(|reply| GciThreadCommand::NewString(value, reply))
+        self.request_worker_result("new_string", |reply| {
+            GciThreadCommand::NewString(value, reply)
+        })
     }
 
     pub fn new_symbol(&self, value: String) -> Result<RawOop> {
-        self.request_raw(|reply| GciThreadCommand::NewSymbol(value, reply))
+        self.request_worker_result("new_symbol", |reply| {
+            GciThreadCommand::NewSymbol(value, reply)
+        })
     }
 
     pub fn new_oop(&self, class_oop: RawOop) -> Result<RawOop> {
-        self.request_raw(|reply| GciThreadCommand::NewOop(class_oop, reply))
+        self.request_worker_result("new_oop", |reply| {
+            GciThreadCommand::NewOop(class_oop, reply)
+        })
     }
 
     pub fn resolve_symbol(&self, name: String, symbol_list: RawOop) -> Result<RawOop> {
-        self.request_raw(|reply| GciThreadCommand::ResolveSymbol(name, symbol_list, reply))
+        self.request_worker_result("resolve_symbol", |reply| {
+            GciThreadCommand::ResolveSymbol(name, symbol_list, reply)
+        })
+    }
+
+    pub fn diagnostics(&self) -> Result<GciThreadDiagnostics> {
+        self.request_worker_value("diagnostics", GciThreadCommand::Diagnostics)
+    }
+
+    pub fn shutdown(&mut self) -> Result<()> {
+        if self.join.is_none() {
+            return Ok(());
+        }
+        let _ = self.sender.send(GciThreadCommand::Shutdown);
+        self.join_worker_thread()
     }
 
     #[cfg(test)]
@@ -704,7 +705,7 @@ impl ExperimentalGciThreadWorker {
 
     #[cfg(test)]
     fn worker_thread_id_debug(&self) -> Result<String> {
-        self.request_string(GciThreadCommand::ThreadId)
+        self.request_worker_value("thread_id", GciThreadCommand::ThreadId)
     }
 
     fn spawn(state: GciThreadState) -> Result<Self> {
@@ -712,7 +713,9 @@ impl ExperimentalGciThreadWorker {
         let join = std::thread::Builder::new()
             .name("gemstone-js-gci-session-spike".to_string())
             .spawn(move || {
+                let mut requests_processed = 0_u64;
                 while let Ok(command) = receiver.recv() {
+                    requests_processed = requests_processed.saturating_add(1);
                     match command {
                         GciThreadCommand::Init(reply) => {
                             let _ = reply.send(state.init());
@@ -821,6 +824,12 @@ impl ExperimentalGciThreadWorker {
                         GciThreadCommand::ThreadId(reply) => {
                             let _ = reply.send(format!("{:?}", std::thread::current().id()));
                         }
+                        GciThreadCommand::Diagnostics(reply) => {
+                            let _ = reply.send(GciThreadDiagnostics {
+                                thread_id_debug: format!("{:?}", std::thread::current().id()),
+                                requests_processed,
+                            });
+                        }
                         GciThreadCommand::Shutdown => break,
                     }
                 }
@@ -837,134 +846,104 @@ impl ExperimentalGciThreadWorker {
         })
     }
 
-    fn request_string(
-        &self,
-        build_command: impl FnOnce(std::sync::mpsc::Sender<String>) -> GciThreadCommand,
-    ) -> Result<String> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(build_command(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver.recv().map_err(|_| {
-            Error::from_reason("Experimental GCI worker thread closed before replying.")
-        })
+    fn join_worker_thread(&mut self) -> Result<()> {
+        if let Some(join) = self.join.take() {
+            join.join().map_err(|_| {
+                Error::from_reason("Experimental GCI worker thread panicked during shutdown.")
+            })?;
+        }
+        Ok(())
     }
 
-    fn request_result_string(
+    fn request_worker_value<T: Send + 'static>(
         &self,
-        build_command: impl FnOnce(
-            std::sync::mpsc::Sender<std::result::Result<String, String>>,
-        ) -> GciThreadCommand,
-    ) -> Result<String> {
+        operation: &str,
+        build_command: impl FnOnce(std::sync::mpsc::Sender<T>) -> GciThreadCommand,
+    ) -> Result<T> {
         let (reply, receiver) = std::sync::mpsc::channel();
         self.sender
             .send(build_command(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+            .map_err(|_| worker_queue_error(operation))?;
+        receiver.recv().map_err(|_| worker_reply_error(operation))
     }
 
-    fn request_unit(
+    fn request_worker_result<T: Send + 'static>(
         &self,
+        operation: &str,
         build_command: impl FnOnce(
-            std::sync::mpsc::Sender<std::result::Result<(), String>>,
+            std::sync::mpsc::Sender<std::result::Result<T, String>>,
         ) -> GciThreadCommand,
-    ) -> Result<()> {
+    ) -> Result<T> {
         let (reply, receiver) = std::sync::mpsc::channel();
         self.sender
             .send(build_command(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
+            .map_err(|_| worker_queue_error(operation))?;
         receiver
             .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+            .map_err(|_| worker_reply_error(operation))?
+            .map_err(|reason| worker_operation_error(operation, reason))
     }
+}
 
-    fn request_raw(
-        &self,
-        build_command: impl FnOnce(
-            std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
-        ) -> GciThreadCommand,
-    ) -> Result<RawOop> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(build_command(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
-    }
+#[cfg(feature = "session-thread-spike")]
+fn worker_queue_error(operation: &str) -> Error {
+    Error::from_reason(format!(
+        "Experimental GCI worker thread is closed before {operation} could be queued."
+    ))
+}
 
-    fn request_bool(
-        &self,
-        build_command: impl FnOnce(
-            std::sync::mpsc::Sender<std::result::Result<bool, String>>,
-        ) -> GciThreadCommand,
-    ) -> Result<bool> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(build_command(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
-    }
+#[cfg(feature = "session-thread-spike")]
+fn worker_reply_error(operation: &str) -> Error {
+    Error::from_reason(format!(
+        "Experimental GCI worker thread closed before replying to {operation}."
+    ))
+}
 
-    fn request_i32(
-        &self,
-        build_command: impl FnOnce(
-            std::sync::mpsc::Sender<std::result::Result<i32, String>>,
-        ) -> GciThreadCommand,
-    ) -> Result<i32> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(build_command(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
-    }
+#[cfg(feature = "session-thread-spike")]
+fn worker_operation_error(operation: &str, reason: String) -> Error {
+    Error::from_reason(format!(
+        "Experimental GCI worker thread operation {operation} failed: {reason}"
+    ))
+}
 
-    fn request_f64(
-        &self,
-        build_command: impl FnOnce(
-            std::sync::mpsc::Sender<std::result::Result<f64, String>>,
-        ) -> GciThreadCommand,
-    ) -> Result<f64> {
-        let (reply, receiver) = std::sync::mpsc::channel();
-        self.sender
-            .send(build_command(reply))
-            .map_err(|_| Error::from_reason("Experimental GCI worker thread is closed."))?;
-        receiver
-            .recv()
-            .map_err(|_| {
-                Error::from_reason("Experimental GCI worker thread closed before replying.")
-            })?
-            .map_err(Error::from_reason)
+#[cfg(feature = "session-thread-spike")]
+fn live_worker_error(lib: &GciLibrary, operation: &str, error: impl std::fmt::Display) -> String {
+    format_worker_gci_error(operation, &error.to_string(), capture_worker_gci_error(lib))
+}
+
+#[cfg(feature = "session-thread-spike")]
+fn capture_worker_gci_error(lib: &GciLibrary) -> Option<GciErrorInfo> {
+    let mut err = GciErrSType::default();
+    let ok = unsafe { lib.gci_err(&mut err).ok()? };
+    if ok == 0 && err.number == 0 {
+        None
+    } else {
+        Some(gci_error_info(err))
     }
+}
+
+#[cfg(feature = "session-thread-spike")]
+fn format_worker_gci_error(operation: &str, reason: &str, info: Option<GciErrorInfo>) -> String {
+    let mut message = format!("{operation} failed: {reason}");
+    if let Some(info) = info {
+        message.push_str(&format!(
+            " [GciErr number={}, fatal={}, message={:?}",
+            info.number, info.fatal, info.message
+        ));
+        if let Some(reason) = info.reason {
+            message.push_str(&format!(", reason={reason:?}"));
+        }
+        message.push(']');
+    }
+    message
 }
 
 #[cfg(feature = "session-thread-spike")]
 impl Drop for ExperimentalGciThreadWorker {
     fn drop(&mut self) {
-        let _ = self.sender.send(GciThreadCommand::Shutdown);
-        if let Some(join) = self.join.take() {
-            let _ = join.join();
+        if self.join.is_some() {
+            let _ = self.sender.send(GciThreadCommand::Shutdown);
+            let _ = self.join_worker_thread();
         }
     }
 }
@@ -1000,7 +979,10 @@ enum GciThreadState {
 impl GciThreadState {
     fn init(&self) -> std::result::Result<i32, String> {
         match self {
-            Self::Live(lib) => unsafe { lib.gci_init().map_err(|error| error.to_string()) },
+            Self::Live(lib) => unsafe {
+                lib.gci_init()
+                    .map_err(|error| live_worker_error(lib, "init", error))
+            },
             #[cfg(test)]
             Self::PathOnly { init_result, .. } => Ok(*init_result),
         }
@@ -1014,7 +996,7 @@ impl GciThreadState {
                 let mut buffer = vec![0_i8; GCI_ENCRYPT_BUF_SIZE];
                 unsafe {
                     lib.gci_encrypt(&password, buffer.as_mut_ptr(), GCI_ENCRYPT_BUF_SIZE as u32)
-                        .map_err(|error| error.to_string())?;
+                        .map_err(|error| live_worker_error(lib, "encrypt", error))?;
                     Ok(CStr::from_ptr(buffer.as_ptr())
                         .to_string_lossy()
                         .into_owned())
@@ -1052,7 +1034,7 @@ impl GciThreadState {
                         encrypted_host_password.as_ptr(),
                         &gem_service,
                     )
-                    .map_err(|error| error.to_string())
+                    .map_err(|error| live_worker_error(lib, "set_net", error))
                 }
             }
             #[cfg(test)]
@@ -1078,7 +1060,7 @@ impl GciThreadState {
                             0
                         },
                     )
-                    .map_err(|error| error.to_string())
+                    .map_err(|error| live_worker_error(lib, "login_ex", error))
                 }
             }
             #[cfg(test)]
@@ -1097,7 +1079,8 @@ impl GciThreadState {
     fn fetch_size(&self, oop: RawOop) -> std::result::Result<i64, String> {
         match self {
             Self::Live(lib) => unsafe {
-                lib.gci_fetch_size(oop).map_err(|error| error.to_string())
+                lib.gci_fetch_size(oop)
+                    .map_err(|error| live_worker_error(lib, "fetch_size", error))
             },
             #[cfg(test)]
             Self::PathOnly { sizes, .. } => sizes
@@ -1110,7 +1093,8 @@ impl GciThreadState {
     fn fetch_class(&self, oop: RawOop) -> std::result::Result<RawOop, String> {
         match self {
             Self::Live(lib) => unsafe {
-                lib.gci_fetch_class(oop).map_err(|error| error.to_string())
+                lib.gci_fetch_class(oop)
+                    .map_err(|error| live_worker_error(lib, "fetch_class", error))
             },
             #[cfg(test)]
             Self::PathOnly { classes, .. } => classes
@@ -1133,7 +1117,7 @@ impl GciThreadState {
                 let mut bytes = vec![0_u8; count];
                 let read = unsafe {
                     lib.gci_fetch_bytes(oop, start, bytes.as_mut_ptr().cast(), count as i64)
-                        .map_err(|error| error.to_string())?
+                        .map_err(|error| live_worker_error(lib, "fetch_bytes", error))?
                 };
                 bytes.truncate(worker_fetch_read_to_len(read, bytes.len())?);
                 Ok(bytes)
@@ -1163,7 +1147,7 @@ impl GciThreadState {
                     .map_err(|_| "executeStr source contains an interior NUL byte.".to_string())?;
                 unsafe {
                     lib.gci_execute_str(&source, receiver_oop)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "execute_str", error))
                 }
             }
             #[cfg(test)]
@@ -1188,7 +1172,7 @@ impl GciThreadState {
                     .map_err(|_| "perform arg count exceeds i32 range.".to_string())?;
                 unsafe {
                     lib.gci_perform(receiver_oop, &selector, args.as_ptr(), argc)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "perform", error))
                 }
             }
             #[cfg(test)]
@@ -1208,7 +1192,10 @@ impl GciThreadState {
         match self {
             Self::Live(lib) => {
                 let mut err = GciErrSType::default();
-                let ok = unsafe { lib.gci_err(&mut err).map_err(|error| error.to_string())? };
+                let ok = unsafe {
+                    lib.gci_err(&mut err)
+                        .map_err(|error| format_worker_gci_error("err", &error.to_string(), None))?
+                };
                 if ok == 0 && err.number == 0 {
                     Ok(None)
                 } else {
@@ -1222,7 +1209,10 @@ impl GciThreadState {
 
     fn logout(&self) -> std::result::Result<i32, String> {
         match self {
-            Self::Live(lib) => unsafe { lib.gci_logout().map_err(|error| error.to_string()) },
+            Self::Live(lib) => unsafe {
+                lib.gci_logout()
+                    .map_err(|error| live_worker_error(lib, "logout", error))
+            },
             #[cfg(test)]
             Self::PathOnly { logout_result, .. } => Ok(*logout_result),
         }
@@ -1230,6 +1220,7 @@ impl GciThreadState {
 
     fn add_oop_to_export_set(&self, oop: RawOop) -> std::result::Result<(), String> {
         self.call_optional_export_set(
+            "add_oop_to_export_set",
             &[
                 b"GciAddOopToExportSet" as &[u8],
                 b"GciAddObjToExportSet" as &[u8],
@@ -1240,6 +1231,7 @@ impl GciThreadState {
 
     fn remove_oop_from_export_set(&self, oop: RawOop) -> std::result::Result<(), String> {
         self.call_optional_export_set(
+            "remove_oop_from_export_set",
             &[
                 b"GciRemoveOopFromExportSet" as &[u8],
                 b"GciRemoveObjFromExportSet" as &[u8],
@@ -1250,6 +1242,7 @@ impl GciThreadState {
 
     fn call_optional_export_set(
         &self,
+        operation: &str,
         names: &[&[u8]],
         oop: RawOop,
     ) -> std::result::Result<(), String> {
@@ -1258,7 +1251,7 @@ impl GciThreadState {
                 for name in names {
                     let called = unsafe {
                         lib.call_optional_oop_export(name, oop)
-                            .map_err(|error| error.to_string())?
+                            .map_err(|error| live_worker_error(lib, operation, error))?
                     };
                     if called {
                         return Ok(());
@@ -1278,7 +1271,7 @@ impl GciThreadState {
                 unsafe {
                     lib.gci_commit(&mut err)
                         .map(|ok| ok != 0)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "commit", error))
                 }
             }
             #[cfg(test)]
@@ -1293,7 +1286,7 @@ impl GciThreadState {
                 unsafe {
                     lib.gci_abort(&mut err)
                         .map(|ok| ok != 0)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "abort", error))
                 }
             }
             #[cfg(test)]
@@ -1306,7 +1299,7 @@ impl GciThreadState {
             Self::Live(lib) => unsafe {
                 lib.gci_needs_commit()
                     .map(|ok| ok != 0)
-                    .map_err(|error| error.to_string())
+                    .map_err(|error| live_worker_error(lib, "needs_commit", error))
             },
             #[cfg(test)]
             Self::PathOnly { needs_commit, .. } => Ok(*needs_commit),
@@ -1318,7 +1311,7 @@ impl GciThreadState {
             Self::Live(lib) => unsafe {
                 lib.gci_in_transaction()
                     .map(|ok| ok != 0)
-                    .map_err(|error| error.to_string())
+                    .map_err(|error| live_worker_error(lib, "in_transaction", error))
             },
             #[cfg(test)]
             Self::PathOnly { in_transaction, .. } => Ok(*in_transaction),
@@ -1328,7 +1321,8 @@ impl GciThreadState {
     fn get_session_id(&self) -> std::result::Result<i32, String> {
         match self {
             Self::Live(lib) => unsafe {
-                lib.gci_get_session_id().map_err(|error| error.to_string())
+                lib.gci_get_session_id()
+                    .map_err(|error| live_worker_error(lib, "get_session_id", error))
             },
             #[cfg(test)]
             Self::PathOnly { session_id, .. } => Ok(*session_id),
@@ -1342,7 +1336,7 @@ impl GciThreadState {
         match self {
             Self::Live(lib) => unsafe {
                 lib.gci_set_session_id(session_id)
-                    .map_err(|error| error.to_string())
+                    .map_err(|error| live_worker_error(lib, "set_session_id", error))
             },
             #[cfg(test)]
             Self::PathOnly { .. } => Ok(()),
@@ -1355,7 +1349,8 @@ impl GciThreadState {
         }
         match self {
             Self::Live(lib) => unsafe {
-                lib.gci_flt_to_oop(value).map_err(|error| error.to_string())
+                lib.gci_flt_to_oop(value)
+                    .map_err(|error| live_worker_error(lib, "flt_to_oop", error))
             },
             #[cfg(test)]
             Self::PathOnly { float_oops, .. } => float_oops
@@ -1371,7 +1366,7 @@ impl GciThreadState {
                 let mut value = 0.0_f64;
                 let ok = unsafe {
                     lib.gci_oop_to_flt(oop, &mut value)
-                        .map_err(|error| error.to_string())?
+                        .map_err(|error| live_worker_error(lib, "oop_to_flt", error))?
                 };
                 if ok == 0 {
                     return Err("OOP cannot be converted to Float.".to_string());
@@ -1395,7 +1390,7 @@ impl GciThreadState {
                 let mut assoc = 0;
                 unsafe {
                     lib.gci_sym_dict_at(dict, &key, &mut value, &mut assoc)
-                        .map_err(|error| error.to_string())?;
+                        .map_err(|error| live_worker_error(lib, "sym_dict_at", error))?;
                 }
                 Ok(SymDictLookup {
                     value: oop_string(value),
@@ -1429,7 +1424,7 @@ impl GciThreadState {
                     .map_err(|_| "symDictAtPut key contains an interior NUL byte.".to_string())?;
                 unsafe {
                     lib.gci_sym_dict_at_put(dict, &key, value)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "sym_dict_at_put", error))
                 }
             }
             #[cfg(test)]
@@ -1446,7 +1441,7 @@ impl GciThreadState {
         match self {
             Self::Live(lib) => unsafe {
                 lib.gci_sym_dict_at_obj_put(dict, key, value)
-                    .map_err(|error| error.to_string())
+                    .map_err(|error| live_worker_error(lib, "sym_dict_at_obj_put", error))
             },
             #[cfg(test)]
             Self::PathOnly { .. } => Ok(()),
@@ -1466,7 +1461,7 @@ impl GciThreadState {
                 let mut value = 0;
                 unsafe {
                     lib.gci_str_key_value_dict_at(dict, &key, &mut value)
-                        .map_err(|error| error.to_string())?;
+                        .map_err(|error| live_worker_error(lib, "str_key_value_dict_at", error))?;
                 }
                 Ok(value)
             }
@@ -1491,7 +1486,7 @@ impl GciThreadState {
                 })?;
                 unsafe {
                     lib.gci_str_key_value_dict_at_put(dict, &key, value)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "str_key_value_dict_at_put", error))
                 }
             }
             #[cfg(test)]
@@ -1506,7 +1501,7 @@ impl GciThreadState {
                     .map_err(|_| "newString value contains an interior NUL byte.".to_string())?;
                 unsafe {
                     lib.gci_new_string(&value)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "new_string", error))
                 }
             }
             #[cfg(test)]
@@ -1521,7 +1516,7 @@ impl GciThreadState {
                     .map_err(|_| "newSymbol value contains an interior NUL byte.".to_string())?;
                 unsafe {
                     lib.gci_new_symbol(&value)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "new_symbol", error))
                 }
             }
             #[cfg(test)]
@@ -1533,7 +1528,7 @@ impl GciThreadState {
         match self {
             Self::Live(lib) => unsafe {
                 lib.gci_new_oop(class_oop)
-                    .map_err(|error| error.to_string())
+                    .map_err(|error| live_worker_error(lib, "new_oop", error))
             },
             #[cfg(test)]
             Self::PathOnly { .. } => Ok(class_oop.saturating_add(8)),
@@ -1551,7 +1546,7 @@ impl GciThreadState {
                     .map_err(|_| "resolveSymbol name contains an interior NUL byte.".to_string())?;
                 unsafe {
                     lib.gci_resolve_symbol(&name, symbol_list)
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| live_worker_error(lib, "resolve_symbol", error))
                 }
             }
             #[cfg(test)]
@@ -1677,6 +1672,7 @@ enum GciThreadCommand {
         std::sync::mpsc::Sender<std::result::Result<RawOop, String>>,
     ),
     ThreadId(std::sync::mpsc::Sender<String>),
+    Diagnostics(std::sync::mpsc::Sender<GciThreadDiagnostics>),
     Shutdown,
 }
 
@@ -1990,6 +1986,91 @@ mod tests {
 
     #[cfg(feature = "session-thread-spike")]
     #[test]
+    fn worker_gci_error_formatter_includes_same_thread_error_details() {
+        let formatted = format_worker_gci_error(
+            "execute_str",
+            "ffi failed",
+            Some(GciErrorInfo {
+                number: 2406,
+                fatal: true,
+                message: "GemStone reported an error".to_string(),
+                reason: Some("transaction conflict".to_string()),
+                category: "0".to_string(),
+                context: "0".to_string(),
+                exception_obj: "0".to_string(),
+                args: vec![],
+            }),
+        );
+
+        assert!(formatted.contains("execute_str failed: ffi failed"));
+        assert!(formatted.contains("GciErr number=2406"));
+        assert!(formatted.contains("fatal=true"));
+        assert!(formatted.contains("GemStone reported an error"));
+        assert!(formatted.contains("transaction conflict"));
+    }
+
+    #[cfg(feature = "session-thread-spike")]
+    #[test]
+    fn experimental_worker_cloned_handles_queue_on_one_thread() {
+        let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
+        let worker = ExperimentalGciThreadWorker::start_for_path_with_readbacks(
+            path,
+            [
+                (i64_to_smallint(1), 10),
+                (i64_to_smallint(2), 20),
+                (i64_to_smallint(3), 30),
+                (i64_to_smallint(4), 40),
+            ],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            None,
+        )
+        .unwrap();
+        let worker_thread_id = worker.worker_thread_id_debug().unwrap();
+        let initial_diagnostics = worker.diagnostics().unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let mut join_handles = Vec::new();
+
+        for index in 1..=4 {
+            let handle = worker.clone();
+            let barrier = barrier.clone();
+            join_handles.push(std::thread::spawn(move || {
+                barrier.wait();
+                let size = handle.fetch_size(i64_to_smallint(index)).unwrap();
+                let thread_id = handle.worker_thread_id_debug().unwrap();
+                (index, size, thread_id)
+            }));
+        }
+
+        let mut results = join_handles
+            .into_iter()
+            .map(|join| join.join().unwrap())
+            .collect::<Vec<_>>();
+        results.sort_by_key(|(index, _, _)| *index);
+
+        assert_eq!(
+            results.iter().map(|(_, size, _)| *size).collect::<Vec<_>>(),
+            vec![10, 20, 30, 40]
+        );
+        assert!(results
+            .iter()
+            .all(|(_, _, thread_id)| thread_id == &worker_thread_id));
+        let final_diagnostics = worker.diagnostics().unwrap();
+        assert_eq!(final_diagnostics.thread_id_debug, worker_thread_id);
+        assert!(
+            final_diagnostics.requests_processed >= initial_diagnostics.requests_processed + 9,
+            "cloned request handles should queue every request on the worker"
+        );
+    }
+
+    #[cfg(feature = "session-thread-spike")]
+    #[test]
     fn experimental_worker_routes_session_calls_on_worker_thread() {
         let path = std::path::PathBuf::from("/tmp/libgcirpc-placeholder");
         let object_class = 123_456;
@@ -2007,7 +2088,7 @@ mod tests {
             exception_obj: "0".to_string(),
             args: vec![],
         };
-        let worker = ExperimentalGciThreadWorker::start_for_path_with_readbacks(
+        let mut worker = ExperimentalGciThreadWorker::start_for_path_with_readbacks(
             path.clone(),
             [(OOP_NIL, 0), (i64_to_smallint(42), 0), (string_oop, 12)],
             [(OOP_NIL, object_class)],
@@ -2028,6 +2109,13 @@ mod tests {
             Some(synthetic_error.clone()),
         )
         .unwrap();
+
+        let initial_diagnostics = worker.diagnostics().unwrap();
+        assert_ne!(
+            initial_diagnostics.thread_id_debug,
+            format!("{:?}", std::thread::current().id())
+        );
+        assert_eq!(initial_diagnostics.requests_processed, 1);
 
         assert_eq!(worker.init().unwrap(), 1);
         assert_eq!(
@@ -2145,6 +2233,22 @@ mod tests {
             worker.worker_thread_id_debug().unwrap(),
             format!("{:?}", std::thread::current().id())
         );
+        let final_diagnostics = worker.diagnostics().unwrap();
+        assert_eq!(
+            final_diagnostics.thread_id_debug,
+            initial_diagnostics.thread_id_debug
+        );
+        assert!(
+            final_diagnostics.requests_processed > initial_diagnostics.requests_processed,
+            "worker diagnostics should count queued requests"
+        );
+        worker.shutdown().unwrap();
+        let closed_error = worker.library_path().unwrap_err();
+        assert!(
+            format!("{closed_error}").contains("library_path"),
+            "closed worker errors should name the queued operation"
+        );
+        worker.shutdown().unwrap();
     }
 
     fn write_c_char_array<const N: usize>(target: &mut [c_char; N], value: &str) {

@@ -1,5 +1,7 @@
 export const publicExports = [
   "Gci",
+  "GciSessionWorker",
+  "createGciSessionWorker",
   "isGemStoneNativeError",
   "smallintToOop",
   "oopToSmallint",

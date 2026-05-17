@@ -62,6 +62,7 @@ if (
   throw new Error("isGemStoneNativeError should reject non-GemStone errors.");
 }
 assertPatchLoaderPatchesGeneratedFixture();
+await assertSessionWorkerSmoke();
 
 if (native.oopToCharString("20") !== null) {
   throw new Error("oopToCharString should return null for non-Character OOPs.");
@@ -115,7 +116,9 @@ function assertPatchLoaderPatchesGeneratedFixture() {
       !patched.includes("GEMSTONE_GCI_ERROR")
       || !patched.includes("class Gci extends NativeGci")
       || !patched.includes("module.exports.isGemStoneNativeError = isGemStoneNativeError")
+      || !patched.includes("module.exports.createGciSessionWorker = createGciSessionWorker")
       || !patchedTypes.includes("interface GemStoneNativeError")
+      || !patchedTypes.includes("class GciSessionWorker")
       || !patchedTypes.includes("isGemStoneNativeError(error: unknown)")
       || !patchedTypes.includes("category?: string")
     ) {
@@ -127,9 +130,34 @@ function assertPatchLoaderPatchesGeneratedFixture() {
   }
 }
 
+async function assertSessionWorkerSmoke() {
+  const worker = native.createGciSessionWorker();
+  if (!(worker instanceof native.GciSessionWorker)) {
+    throw new Error("createGciSessionWorker should return a GciSessionWorker.");
+  }
+  try {
+    await assertRejectsAsync(
+      () => worker.call("definitelyMissingMethod"),
+      "GciSessionWorker should reject unsupported queued methods.",
+    );
+  } finally {
+    await worker.close();
+  }
+  await worker.close();
+}
+
 function assertCommandFails(fn, message) {
   try {
     fn();
+  } catch {
+    return;
+  }
+  throw new Error(message);
+}
+
+async function assertRejectsAsync(fn, message) {
+  try {
+    await fn();
   } catch {
     return;
   }
@@ -165,5 +193,6 @@ export interface SymDictLookup {
   value: string
   assoc: string
 }
+export declare function smallintToOop(value: number): string
 `;
 }

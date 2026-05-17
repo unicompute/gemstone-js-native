@@ -32,6 +32,7 @@ jobs:
       - run: npm pack --json
       - run: node scripts/write-checksums.mjs .node .tgz
       - run: node scripts/verify-checksums.mjs SHA256SUMS.txt
+      - run: node scripts/check-prebuild-artifacts.mjs .
       - uses: actions/upload-artifact@v4
         with:
           name: gemstone-js-native-${{ matrix.os }}
