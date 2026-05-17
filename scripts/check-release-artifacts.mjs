@@ -12,10 +12,9 @@ const cache = join(tempRoot, "npm-cache");
 const checksumWriter = join(scriptDir, "write-checksums.mjs");
 const checksumVerifier = join(scriptDir, "verify-checksums.mjs");
 const prebuildChecker = join(scriptDir, "check-prebuild-artifacts.mjs");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 try {
-  const packOutput = execFileSync(npmCommand, ["pack", "--json", "--pack-destination", tempRoot], {
+  const packOutput = runNpm(["pack", "--json", "--pack-destination", tempRoot], {
     cwd: packageRoot,
     encoding: "utf8",
     env: { ...process.env, npm_config_cache: cache },
@@ -82,4 +81,14 @@ function assertChecksumTargets(expected) {
   if (actual.length !== expectedSorted.length || actual.some((target, index) => target !== expectedSorted[index])) {
     throw new Error(`Release checksum targets must be exactly ${expectedSorted.join(", ")}, found: ${actual.join(", ")}`);
   }
+}
+
+function runNpm(args, options) {
+  if (process.env.npm_execpath) {
+    return execFileSync(process.execPath, [process.env.npm_execpath, ...args], options);
+  }
+  if (process.platform === "win32") {
+    return execFileSync("cmd.exe", ["/d", "/s", "/c", "npm", ...args], options);
+  }
+  return execFileSync("npm", args, options);
 }

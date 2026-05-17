@@ -7,10 +7,9 @@ import { join } from "node:path";
 const tempRoot = mkdtempSync(join(tmpdir(), "gemstone-js-native-installed-"));
 const cache = join(tempRoot, "npm-cache");
 const packageRoot = join(tempRoot, "package");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 try {
-  const packOutput = execFileSync(npmCommand, ["pack", "--json", "--pack-destination", tempRoot], {
+  const packOutput = runNpm(["pack", "--json", "--pack-destination", tempRoot], {
     encoding: "utf8",
     env: { ...process.env, npm_config_cache: cache },
   });
@@ -110,4 +109,14 @@ function assertLoaderReferencesNativeBinary(root, nativeBinary) {
       throw new Error(`Installed loader is missing patched error-mapping snippet: ${snippet}`);
     }
   }
+}
+
+function runNpm(args, options) {
+  if (process.env.npm_execpath) {
+    return execFileSync(process.execPath, [process.env.npm_execpath, ...args], options);
+  }
+  if (process.platform === "win32") {
+    return execFileSync("cmd.exe", ["/d", "/s", "/c", "npm", ...args], options);
+  }
+  return execFileSync("npm", args, options);
 }

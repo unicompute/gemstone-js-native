@@ -5,11 +5,10 @@ import { join } from "node:path";
 import { gciMethods, publicExports } from "./public-surface.mjs";
 
 const cache = mkdtempSync(join(tmpdir(), "gemstone-js-native-npm-cache-"));
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 let pack;
 try {
-  const output = execFileSync(npmCommand, ["pack", "--dry-run", "--json"], {
+  const output = runNpm(["pack", "--dry-run", "--json"], {
     encoding: "utf8",
     env: { ...process.env, npm_config_cache: cache },
   });
@@ -571,4 +570,14 @@ function assertSnippets(path, contents, snippets) {
       throw new Error(`${path} is missing required release verification snippet: ${JSON.stringify(snippet)}.`);
     }
   }
+}
+
+function runNpm(args, options) {
+  if (process.env.npm_execpath) {
+    return execFileSync(process.execPath, [process.env.npm_execpath, ...args], options);
+  }
+  if (process.platform === "win32") {
+    return execFileSync("cmd.exe", ["/d", "/s", "/c", "npm", ...args], options);
+  }
+  return execFileSync("npm", args, options);
 }
